@@ -1,3 +1,5 @@
+all: install prepare train generate
+	
 prepare:
 	python3 data/shakespeare_char/prepare.py
 train:
@@ -9,4 +11,4 @@ generate:
 install:
 	python3 -m pip install --pre torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/nightly/cpu
 	python3 -m pip install transformers datasets tiktoken wandb tqdm
-
+	@echo "use python 3.10"
