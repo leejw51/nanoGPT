@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nanoGPT, 처음부터 이해하기</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --border:#2b3543;
+    --fg:#e6edf3; --muted:#9aa7b4; --accent:#58a6ff; --accent2:#3fb950;
+    --kw:#ff7b72; --str:#a5d6ff; --num:#d2a8ff; --com:#7d8590;
+    --warn:#e3b341; --pink:#f778ba; --mono:"SF Mono", "JetBrains Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",Roboto,"Malgun Gothic",Helvetica,Arial,sans-serif;
+    line-height:1.7;font-size:16px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:var(--mono);font-size:.88em;background:#21262d;padding:.12em .4em;border-radius:5px;color:#e6edf3}
+  h1,h2,h3{line-height:1.3}
+  h2{font-size:1.7rem;margin:0 0 .2em;padding-bottom:.3em;border-bottom:1px solid var(--border)}
+  h3{font-size:1.2rem;color:var(--accent);margin-top:1.8em}
+  p{color:#d3dbe3}
+  .layout{display:flex;min-height:100vh}
+
+  /* sidebar */
+  nav.side{width:262px;flex:0 0 262px;background:var(--panel);border-right:1px solid var(--border);
+    position:sticky;top:0;height:100vh;overflow-y:auto;padding:22px 0}
+  nav.side .brand{padding:0 22px 14px;font-weight:700;font-size:1.05rem;letter-spacing:.3px}
+  nav.side .brand span{color:var(--accent)}
+  nav.side .sub{padding:0 22px 16px;color:var(--muted);font-size:.78rem;border-bottom:1px solid var(--border);margin-bottom:10px}
+  nav.side a{display:block;color:var(--muted);padding:7px 22px;font-size:.9rem;border-left:3px solid transparent}
+  nav.side a:hover{color:var(--fg);background:#1b212b;text-decoration:none}
+  nav.side a.active{color:var(--fg);border-left-color:var(--accent);background:#1b2230;font-weight:600}
+  nav.side .grp{padding:14px 22px 4px;color:#5b6673;font-size:.7rem;letter-spacing:1px}
+
+  main{flex:1;min-width:0;padding:38px 52px 120px;max-width:1080px;margin:0 auto}
+  section{margin-bottom:62px;scroll-margin-top:20px}
+  .lead{font-size:1.08rem;color:var(--muted)}
+
+  .hero{background:linear-gradient(135deg,#161b22,#1c2942);border:1px solid var(--border);
+    border-radius:14px;padding:30px 34px;margin-bottom:40px}
+  .hero h1{margin:0 0 .25em;font-size:2.2rem}
+  .hero .tag{display:inline-block;background:#21364f;color:#9ecbff;
+    padding:3px 11px;border-radius:20px;font-size:.74rem;margin-right:7px;border:1px solid #2f4f6f}
+  .pills span{display:inline-block;background:#1f2630;border:1px solid var(--border);color:var(--muted);
+    padding:3px 11px;border-radius:20px;font-size:.74rem;margin:4px 6px 0 0}
+
+  /* code blocks */
+  .codewrap{position:relative;margin:16px 0}
+  .codewrap .lbl{position:absolute;top:0;left:14px;transform:translateY(-50%);
+    background:var(--accent);color:#0d1117;font-size:.66rem;font-weight:700;letter-spacing:.5px;
+    padding:2px 9px;border-radius:5px;text-transform:uppercase}
+  pre{background:#0a0e14;border:1px solid var(--border);border-radius:10px;padding:18px 16px;
+    overflow-x:auto;margin:0;font-size:.85rem}
+  pre code{background:none;padding:0;font-size:inherit;color:#c9d1d9;display:block;white-space:pre}
+  .copy{position:absolute;top:9px;right:9px;background:#21262d;border:1px solid var(--border);
+    color:var(--muted);font-size:.72rem;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:var(--mono)}
+  .copy:hover{color:var(--fg);border-color:var(--accent)}
+  .copy.ok{color:var(--accent2);border-color:var(--accent2)}
+  .tok-kw{color:var(--kw)} .tok-str{color:var(--str)} .tok-num{color:var(--num)}
+  .tok-com{color:var(--com);font-style:italic} .tok-fn{color:#d2a8ff}
+
+  /* callouts */
+  .note{border-left:4px solid var(--accent);background:#11253c;padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0}
+  .warn{border-left:4px solid var(--warn);background:#2a230f;padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0}
+  .tip{border-left:4px solid var(--accent2);background:#0f2a17;padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0}
+  .note b,.warn b,.tip b{color:var(--fg)}
+
+  /* tables */
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:.9rem}
+  th,td{border:1px solid var(--border);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--fg);font-weight:600}
+  td code{font-size:.82rem}
+  tr:nth-child(even) td{background:#10151c}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px}
+  .card h4{margin:0 0 6px;color:var(--accent)}
+  .card .f{font-family:var(--mono);font-size:.8rem;color:var(--pink)}
+  .card p{margin:.4em 0 0;font-size:.86rem;color:var(--muted)}
+
+  details{background:var(--panel);border:1px solid var(--border);border-radius:10px;margin:14px 0;padding:0 16px}
+  details[open]{padding-bottom:12px}
+  summary{cursor:pointer;padding:13px 0;font-weight:600;color:var(--fg)}
+  summary:hover{color:var(--accent)}
+
+  /* pipeline diagram */
+  .pipe{display:flex;flex-direction:column;gap:6px;margin:18px 0;font-family:var(--mono);font-size:.84rem}
+  .pipe .row{display:flex;align-items:center;gap:12px}
+  .pipe .box{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:8px 13px;flex:1}
+  .pipe .box b{color:var(--accent)}
+  .pipe .shp{color:var(--accent2);white-space:nowrap}
+  .pipe .arrow{color:var(--muted);text-align:center;margin-left:24px}
+  .pipe .blk{border-left:3px solid var(--pink);padding-left:14px;margin-left:8px}
+  .pipe .blkhdr{color:var(--pink);font-size:.78rem;letter-spacing:.5px;margin:6px 0 2px}
+
+  /* interactive explorer */
+  .explorer{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px;margin:20px 0}
+  .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:8px}
+  .ctl label{display:block;font-size:.78rem;color:var(--muted);margin-bottom:4px}
+  .ctl .v{color:var(--accent);font-weight:700}
+  .ctl input[type=range]{width:100%;accent-color:var(--accent)}
+  .ctl select{width:100%;background:#0a0e14;color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px}
+  .preset{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 18px}
+  .preset button{background:#21262d;border:1px solid var(--border);color:var(--muted);
+    padding:6px 13px;border-radius:18px;cursor:pointer;font-size:.8rem}
+  .preset button:hover,.preset button.sel{color:#0d1117;background:var(--accent);border-color:var(--accent);font-weight:600}
+  .stats{display:flex;gap:22px;flex-wrap:wrap;margin:6px 0 14px;font-size:.85rem}
+  .stats .s b{color:var(--accent2);font-family:var(--mono)}
+  .toggle{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px}
+  .toggle button{background:#0a0e14;color:var(--muted);border:none;padding:7px 16px;cursor:pointer;font-size:.85rem}
+  .toggle button.on{background:var(--accent);color:#0d1117;font-weight:700}
+  #shapeTable td:nth-child(1){color:var(--muted);font-family:var(--mono);font-size:.78rem;width:42px;text-align:right}
+  #shapeTable td:nth-child(2){font-family:var(--mono);color:#e6edf3}
+  #shapeTable td:nth-child(3){font-family:var(--mono);color:var(--accent2);white-space:nowrap}
+  #shapeTable td:nth-child(4){color:var(--muted);font-size:.85rem}
+  .phase td{background:#182135 !important;color:var(--pink) !important;font-weight:700;
+    letter-spacing:.5px;font-size:.78rem}
+  .err{color:var(--warn);font-weight:600}
+
+  .legend{font-size:.84rem;color:var(--muted);margin-top:10px}
+  .legend code{color:var(--accent)}
+  hr{border:none;border-top:1px solid var(--border);margin:30px 0}
+  .small{font-size:.85rem;color:var(--muted)}
+  @media(max-width:880px){
+    nav.side{display:none}
+    main{padding:24px 18px 80px}
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="side">
+  <div class="brand"><span>nano</span>GPT · 해설</div>
+  <div class="sub">Karpathy의 최소 GPT, 처음부터 끝까지</div>
+  <div class="grp">시작하기</div>
+  <a href="#overview">1 · 개요</a>
+  <a href="#files">2 · 파일 &amp; 구조</a>
+  <a href="#run">3 · 설치 &amp; 실행</a>
+  <div class="grp">모델</div>
+  <a href="#arch">4 · 아키텍처</a>
+  <a href="#flow">5 · 순전파(forward)</a>
+  <a href="#explorer">6 · 텐서 모양 탐색기 ▸</a>
+  <div class="grp">반복 루프</div>
+  <a href="#train">7 · 학습 루프</a>
+  <a href="#infer">8 · 추론 / 샘플링</a>
+  <div class="grp">직접 해보기</div>
+  <a href="#shapes">9 · 텐서 모양 출력하기</a>
+  <a href="#cheats">10 · 치트 시트</a>
+</nav>
+
+<main>
+  <div class="hero">
+    <h1>nanoGPT, 처음부터 이해하기</h1>
+    <p class="lead">GPT 하나를 학습하고 실행하는 약 600줄짜리 저장소입니다. 핵심은 두 파일이 담당합니다.
+    <code>model.py</code>는 신경망을 정의하고, <code>train.py</code>는 그것을 최적화합니다. 이 페이지는
+    설치 &rarr; 데이터 &rarr; 학습 &rarr; 샘플링까지의 전 과정을 따라가며, 모든 텐서의 모양(shape)을 설명하고,
+    각 단계의 모양을 출력하려면 정확히 무엇을 수정해야 하는지 보여줍니다.</p>
+    <div class="pills">
+      <span>PyTorch</span><span>GPT-2 아키텍처</span><span>~10.6M&ndash;1.5B 파라미터</span>
+      <span>문자 또는 BPE 토큰</span><span>단일 파일 모델</span>
+    </div>
+  </div>
+
+  <!-- 1. OVERVIEW -->
+  <section id="overview">
+    <h2>1 · 개요</h2>
+    <p>nanoGPT는 한 번에 다 읽을 수 있는 디코더 전용(decoder-only) 트랜스포머(GPT-2 아키텍처)입니다.
+    모델의 역할은 아주 단순합니다. <b>토큰 시퀀스가 주어지면 다음 토큰을 예측한다.</b>
+    이것만 잘하면, 토큰을 한 번에 하나씩 샘플링해 다시 입력으로 넣어 텍스트를 생성할 수 있습니다.</p>
+
+    <div class="cards">
+      <div class="card"><h4>1. 데이터 준비</h4><div class="f">data/*/prepare.py</div>
+        <p>원시 텍스트를 정수 토큰 id의 흐름으로 바꿔 <code>train.bin</code> / <code>val.bin</code>으로 저장합니다.</p></div>
+      <div class="card"><h4>2. 학습</h4><div class="f">train.py + model.py</div>
+        <p>반복: 배치를 가져오고, 다음 토큰을 예측하고, 오차(loss)를 측정하고, 가중치를 조금씩 조정합니다.</p></div>
+      <div class="card"><h4>3. 샘플링</h4><div class="f">sample.py</div>
+        <p>학습된 가중치를 불러와 자기회귀적으로 새 텍스트를 생성합니다.</p></div>
+    </div>
+
+    <div class="note"><b>핵심 직관:</b> 신경망 전체는 결국 하나의 함수
+      <code>idx → logits</code> 입니다. 입력 <code>idx</code>는 모양이 <code>[batch, time]</code>인 토큰 id 격자이고,
+      출력 <code>logits</code>는 모든 위치에서 모든 어휘 단어에 대한 점수로 모양은
+      <code>[batch, time, vocab]</code> 입니다. 나머지는 전부 이 함수를 둘러싼 배관 작업일 뿐입니다.</p>
+
+    <div class="warn"><b>참고:</b> README는 이 저장소를 후속작
+      <a href="https://github.com/karpathy/nanochat" target="_blank">nanochat</a>에 자리를 내준 오래된/지원 종료 저장소로 표시합니다.
+      그래도 GPT의 동작 원리를 <i>배우기</i>에는 nanoGPT가 가장 깔끔하며, 이 페이지의 목적이 바로 그것입니다.</p>
+  </section>
+
+  <!-- 2. FILES -->
+  <section id="files">
+    <h2>2 · 파일 &amp; 구조</h2>
+    <p>저장소 전체가 작습니다. 중요한 파일과 그 역할을 모두 정리하면 다음과 같습니다.</p>
+    <table>
+      <tr><th>파일</th><th>역할</th></tr>
+      <tr><td><code>model.py</code></td><td>GPT 정의: 임베딩, 어텐션, MLP, 블록,
+        <code>forward()</code> 순전파, 가중치 로딩, <code>generate()</code>. 약 330줄. <b>심장부입니다.</b></td></tr>
+      <tr><td><code>train.py</code></td><td>학습 루프: 데이터 로더, 옵티마이저, 학습률 스케줄,
+        그래디언트 누적, 평가, 체크포인트, 멀티 GPU(DDP). 약 340줄.</td></tr>
+      <tr><td><code>sample.py</code></td><td>체크포인트(또는 GPT-2 가중치)를 불러와 텍스트를 생성합니다.</td></tr>
+      <tr><td><code>configurator.py</code></td><td>작은 트릭: 설정 파일이나 CLI
+        <code>--key=value</code> 인자를 <code>exec()</code>로 실행해 전역 변수를 덮어씁니다. 그래서
+        <code>train.py config/foo.py --batch_size=8</code> 가 동작합니다.</td></tr>
+      <tr><td><code>config/*.py</code></td><td>미리 만들어진 하이퍼파라미터 세트. 예:
+        <code>train_shakespeare_char.py</code>(아주 작은 모델), <code>train_gpt2.py</code>(진짜 124M 학습).</td></tr>
+      <tr><td><code>data/*/prepare.py</code></td><td>데이터셋별 토크나이저: 텍스트를 내려받아 id로 인코딩하고
+        <code>train.bin</code>, <code>val.bin</code>, <code>meta.pkl</code>(어휘)을 씁니다.</td></tr>
+      <tr><td><code>bench.py</code></td><td>순전파/역전파 속도 마이크로 벤치마크.</td></tr>
+      <tr><td><code>shapes_demo.py</code> <span class="small">(이 가이드가 추가)</span></td>
+        <td>순전파 1회를 실행하며 후크(hook)로 모든 레이어의 모양을 출력합니다. §9 참고.</td></tr>
+    </table>
+
+    <h3>각 조각이 어떻게 연결되는가</h3>
+    <div class="pipe">
+      <div class="row"><div class="box"><b>prepare.py</b> &nbsp;원시 텍스트 &rarr; id</div><div class="shp">train.bin / val.bin / meta.pkl 기록</div></div>
+      <div class="arrow">↓</div>
+      <div class="row"><div class="box"><b>train.py</b> &nbsp;.bin을 읽고, <b>model.py</b>의 <code>GPT(GPTConfig)</code>를 만들어 반복</div><div class="shp">out/ckpt.pt 기록</div></div>
+      <div class="arrow">↓</div>
+      <div class="row"><div class="box"><b>sample.py</b> &nbsp;ckpt.pt를 <code>GPT</code>로 불러와 <code>model.generate()</code> 호출</div><div class="shp">텍스트 출력</div></div>
+    </div>
+  </section>
+
+  <!-- 3. RUN -->
+  <section id="run">
+    <h2>3 · 설치 &amp; 실행</h2>
+    <p>가장 빠른 전 과정 경로입니다. 작은 문자 단위(character-level) 셰익스피어 모델을 학습하고 샘플링합니다.
+    노트북 CPU(느림)나 Apple Silicon GPU(<code>mps</code>)에서도 동작합니다.</p>
+
+    <h3>0단계 — 의존성 설치</h3>
+    <div class="codewrap"><span class="lbl">shell</span><code class="codeblock" data-key="install"></code></div>
+    <div class="note">현재 macOS에 아직 어떤 환경에도 <code>torch</code>가 없습니다(확인함: base/gemma conda 환경, 시스템 python).
+      먼저 환경을 활성화하거나 생성하세요. 예: <code>conda create -n gpt python=3.11 &amp;&amp; conda activate gpt</code> 후 설치를 실행합니다.</div>
+
+    <h3>1단계 — 데이터 준비</h3>
+    <p>약 1&nbsp;MB의 셰익스피어 텍스트를 내려받아 각 문자를 정수 id로 바꿉니다(어휘 = 65개 고유 문자).</p>
+    <div class="codewrap"><span class="lbl">shell</span><code class="codeblock" data-key="prepare"></code></div>
+    <p class="small"><code>data/shakespeare_char/{train.bin, val.bin, meta.pkl}</code>을 생성합니다.</p>
+
+    <h3>2단계 — 학습</h3>
+    <p>Mac에서는 CPU/MPS를 강제하고 <code>torch.compile</code>을 끄세요(compile은 CUDA/Triton이 필요하고 디버그 출력을 방해함):</p>
+    <div class="codewrap"><span class="lbl">shell · mac</span><code class="codeblock" data-key="train_mac"></code></div>
+    <p>NVIDIA GPU에서는 기본값을 그대로 쓰면 됩니다(A100에서 약 3분 걸리는 베이비 GPT 학습):</p>
+    <div class="codewrap"><span class="lbl">shell · cuda</span><code class="codeblock" data-key="train_gpu"></code></div>
+    <p>loss가 떨어지는 것을 지켜보세요. 체크포인트는 <code>out-shakespeare-char/ckpt.pt</code>에 저장됩니다.
+    설정(<code>config/train_shakespeare_char.py</code>)은 <b>6레이어, 6헤드, 384차원, 약 10.6M 파라미터</b> 모델을 만듭니다.</p>
+
+    <h3>3단계 — 샘플링(추론)</h3>
+    <div class="codewrap"><span class="lbl">shell · mac</span><code class="codeblock" data-key="sample"></code></div>
+    <p>직접 작성한 텍스트로 프롬프트를 줄 수도 있습니다:</p>
+    <div class="codewrap"><span class="lbl">shell</span><code class="codeblock" data-key="sample_prompt"></code></div>
+
+    <h3>보너스 — 학습을 건너뛰고 진짜 GPT-2 사용</h3>
+    <p>학습 없이 OpenAI의 사전학습 가중치를 내려받아 바로 생성할 수 있습니다:</p>
+    <div class="codewrap"><span class="lbl">shell</span><code class="codeblock" data-key="sample_gpt2"></code></div>
+
+    <table>
+      <tr><th>옵션</th><th>위치</th><th>의미</th></tr>
+      <tr><td><code>--device</code></td><td>train/sample</td><td><code>cpu</code>, <code>cuda</code>, 또는 <code>mps</code>(Apple GPU)</td></tr>
+      <tr><td><code>--compile</code></td><td>train/sample</td><td><code>True</code> = 속도를 위해 JIT 컴파일(CUDA). Mac이나 디버깅 시에는 <code>False</code>.</td></tr>
+      <tr><td><code>--init_from</code></td><td>train/sample</td><td><code>scratch</code>, <code>resume</code>, 또는 <code>gpt2</code>/<code>gpt2-medium</code>/<code>gpt2-large</code>/<code>gpt2-xl</code></td></tr>
+      <tr><td><code>--max_iters</code></td><td>train</td><td>실행할 최적화 스텝 수</td></tr>
+      <tr><td><code>--temperature</code> / <code>--top_k</code></td><td>sample</td><td>샘플링 무작위성 / 후보 컷오프</td></tr>
+    </table>
+  </section>
+
+  <!-- 4. ARCHITECTURE -->
+  <section id="arch">
+    <h2>4 · 아키텍처</h2>
+    <p>이 모델은 동일한 <b>트랜스포머 블록</b>을 쌓은 것으로, 임베딩(입력)과 선형 헤드(출력) 사이에 끼워져 있습니다.
+    전체를 위에서 아래로 살펴봅니다.</p>
+
+    <h3>설정(config)</h3>
+    <p>신경망의 모든 모양은 이 여섯 개의 숫자에서 파생됩니다:</p>
+    <div class="codewrap"><span class="lbl">model.py</span><code class="codeblock" data-key="cfg"></code></div>
+    <table>
+      <tr><th>필드</th><th>기호</th><th>제어하는 것</th></tr>
+      <tr><td><code>block_size</code></td><td>T</td><td>최대 컨텍스트 길이(과거 토큰을 몇 개까지 볼 수 있는지)</td></tr>
+      <tr><td><code>vocab_size</code></td><td>V</td><td>구분되는 토큰의 개수</td></tr>
+      <tr><td><code>n_embd</code></td><td>C</td><td>임베딩 폭 — 모든 벡터의 "두께"</td></tr>
+      <tr><td><code>n_head</code></td><td>nh</td><td>어텐션 헤드 수(C를 나눠떨어뜨려야 함; 헤드 크기 = C/nh)</td></tr>
+      <tr><td><code>n_layer</code></td><td>L</td><td>블록을 몇 개 쌓는지</td></tr>
+      <tr><td><code>dropout</code>, <code>bias</code></td><td>—</td><td>정규화 / Linear·LayerNorm에 bias를 둘지 여부</td></tr>
+    </table>
+
+    <h3>최상위 조립(<code>GPT</code> 모듈)</h3>
+    <div class="pipe">
+      <div class="blkhdr">transformer = ModuleDict(...)</div>
+      <div class="row"><div class="box"><b>wte</b> 토큰 임베딩 &nbsp;<code>Embedding(V, C)</code></div><div class="shp">id → 벡터</div></div>
+      <div class="row"><div class="box"><b>wpe</b> 위치 임베딩 &nbsp;<code>Embedding(T, C)</code></div><div class="shp">위치 → 벡터</div></div>
+      <div class="row"><div class="box"><b>drop</b> 드롭아웃</div></div>
+      <div class="blk">
+        <div class="blkhdr">h = ModuleList([ Block × n_layer ])</div>
+        <div class="row"><div class="box">각 Block: <code>ln_1 → attn → (+) → ln_2 → mlp → (+)</code></div></div>
+      </div>
+      <div class="row"><div class="box"><b>ln_f</b> 마지막 LayerNorm</div></div>
+      <div class="row"><div class="box"><b>lm_head</b> &nbsp;<code>Linear(C, V, bias=False)</code> &nbsp;→ logits</div><div class="shp">벡터 → 어휘 점수</div></div>
+    </div>
+    <div class="tip"><b>가중치 공유(weight tying):</b> <code>wte.weight = lm_head.weight</code>. 같은 행렬이
+      입력에서 id→벡터로, 출력에서 벡터→점수로 매핑합니다. <code>V×C</code> 파라미터를 절약하고 학습도 더 잘 됩니다.</div>
+
+    <h3>구성요소 1 — <code>CausalSelfAttention</code></h3>
+    <p>토큰들이 앞선 토큰들을 "바라보는" 곳입니다. <b>인과적(Causal)</b>이란 토큰이 자기 자신과 과거만 볼 수 있고
+    미래는 절대 볼 수 없다는 뜻입니다(그렇지 않으면 다음 토큰 예측에서 부정행위가 됩니다).</p>
+    <div class="codewrap"><span class="lbl">model.py</span><code class="codeblock" data-key="attn"></code></div>
+    <ul>
+      <li><b>한 번의 행렬곱으로 Q, K, V 생성.</b> <code>c_attn</code>이 각 토큰 벡터(C)를 <code>3C</code>로 투영한 뒤 query/key/value로 분리합니다.</li>
+      <li><b>헤드로 재배열.</b> <code>C</code>가 <code>hs = C/nh</code> 크기의 <code>nh</code>개 헤드로 쪼개져 모양이 <code>[B, nh, T, hs]</code>가 되고, 각 헤드는 독립적으로 어텐션합니다.</li>
+      <li><b>어텐션 점수.</b> <code>q @ kᵀ</code>가 <code>[B, nh, T, T]</code> 행렬을 만듭니다 — 각 토큰이 다른 토큰에 얼마나 주목하는지. <code>1/√hs</code>로 스케일링하고, 인과 마스킹 후, 소프트맥스를 적용합니다.</li>
+      <li><b>value의 가중합.</b> <code>att @ v</code> → <code>[B, nh, T, hs]</code>, 이후 헤드들을 다시 <code>[B, T, C]</code>로 이어 붙이고 <code>c_proj</code>로 투영합니다.</li>
+      <li><b>Flash attention</b>(<code>scaled_dot_product_attention</code>, PyTorch ≥ 2.0)은 점수+마스크+소프트맥스+행렬곱을 하나의 빠른 커널로 융합합니다 — 수학은 동일하되 메모리에 명시적 <code>[B,nh,T,T]</code> 텐서를 만들지 않습니다.</li>
+    </ul>
+
+    <h3>구성요소 2 — <code>MLP</code></h3>
+    <p>토큰별(per-token) 2층 피드포워드 신경망입니다. 4배로 확장하고, GELU 비선형성을 적용한 뒤, 다시 투영합니다.
+    모델의 "지식" 용량 대부분이 여기에 자리합니다.</p>
+    <div class="codewrap"><span class="lbl">model.py</span><code class="codeblock" data-key="mlp"></code></div>
+
+    <h3>구성요소 3 — <code>Block</code>(반복되는 단위)</h3>
+    <p>블록 = 어텐션 + MLP이며, 각각 <b>사전 LayerNorm(pre-LayerNorm)</b>과 <b>잔차(skip) 연결</b>을 가집니다.
+    <code>x +</code> 가 바로 잔차입니다. 블록은 흐르는 스트림에 더할 <i>증분(delta)</i>을 학습하며, 이 덕분에 깊은 스택도
+    학습 가능해집니다.</p>
+    <div class="codewrap"><span class="lbl">model.py</span><code class="codeblock" data-key="block"></code></div>
+
+    <h3>전체 순전파(forward)</h3>
+    <div class="codewrap"><span class="lbl">model.py</span><code class="codeblock" data-key="forward"></code></div>
+    <div class="note"><b>학습 vs. 추론 분기:</b> <code>targets</code>가 주어지면(학습) <i>모든</i> 위치에 대해 logits와
+      교차 엔트로피 loss를 계산합니다. 주어지지 않으면(생성) <i>마지막</i> 위치에서만 <code>lm_head</code>를 실행합니다 —
+      다음 토큰 예측에는 그것만 필요하고, 훨씬 저렴합니다.</div>
+  </section>
+
+  <!-- 5. FLOW -->
+  <section id="flow">
+    <h2>5 · 순전파를 모양 단위로 추적</h2>
+    <p>배치 하나를 신경망에 통과시켜 봅시다. 셰익스피어 설정
+    (<code>B=64, T=256, C=384, nh=6, L=6, V=65</code>, 따라서 헤드 크기 <code>hs = 64</code>)을 사용합니다:</p>
+
+    <div class="pipe">
+      <div class="row"><div class="box"><b>get_batch</b> → <code>idx</code>, <code>targets</code></div><div class="shp">[B, T] = [64, 256]</div></div>
+      <div class="arrow">↓ 임베딩</div>
+      <div class="row"><div class="box"><b>wte(idx) + wpe(pos)</b> → x</div><div class="shp">[B, T, C] = [64, 256, 384]</div></div>
+      <div class="arrow">↓ × n_layer 블록</div>
+      <div class="blk">
+        <div class="blkhdr">블록 하나 내부</div>
+        <div class="row"><div class="box">ln_1 → c_attn → q,k,v 분리</div><div class="shp">qkv [B,T,3C]=[64,256,1152]</div></div>
+        <div class="row"><div class="box">헤드로 재배열</div><div class="shp">[B,nh,T,hs]=[64,6,256,64]</div></div>
+        <div class="row"><div class="box">q @ kᵀ → 어텐션 행렬</div><div class="shp">[B,nh,T,T]=[64,6,256,256]</div></div>
+        <div class="row"><div class="box">att @ v → 헤드 병합 → c_proj</div><div class="shp">[B,T,C]=[64,256,384]</div></div>
+        <div class="row"><div class="box">ln_2 → mlp (c_fc 4배 → gelu → c_proj)</div><div class="shp">은닉 [B,T,4C]=[64,256,1536]</div></div>
+      </div>
+      <div class="arrow">↓ ln_f</div>
+      <div class="row"><div class="box"><b>lm_head(x)</b> → logits (학습)</div><div class="shp">[B, T, V] = [64, 256, 65]</div></div>
+      <div class="row"><div class="box"><b>cross_entropy</b> → loss</div><div class="shp">스칼라 []</div></div>
+    </div>
+
+    <p>모델 크기를 바꿔가며 실시간으로 보고 싶다면 아래의 인터랙티브 탐색기를 사용하세요. ↓</p>
+  </section>
+
+  <!-- 6. EXPLORER -->
+  <section id="explorer">
+    <h2>6 · 인터랙티브 텐서 모양 탐색기</h2>
+    <p>슬라이더를 드래그하세요. 순전파의 모든 텐서 모양이 즉시 재계산됩니다. 프리셋을 바꿔
+    베이비 셰익스피어 모델이 진짜 GPT-2와 어떻게 다른지 비교해 보세요.</p>
+
+    <div class="explorer">
+      <div class="preset" id="presets"></div>
+      <div class="controls">
+        <div class="ctl"><label>배치 크기 B = <span class="v" id="vB">64</span></label>
+          <input type="range" id="B" min="1" max="128" value="64"></div>
+        <div class="ctl"><label>블록 크기 T (컨텍스트) = <span class="v" id="vT">256</span></label>
+          <input type="range" id="T" min="8" max="1024" step="8" value="256"></div>
+        <div class="ctl"><label>n_embd C = <span class="v" id="vC">384</span></label>
+          <input type="range" id="C" min="16" max="1600" step="16" value="384"></div>
+        <div class="ctl"><label>n_head nh = <span class="v" id="vH">6</span></label>
+          <input type="range" id="H" min="1" max="25" value="6"></div>
+        <div class="ctl"><label>n_layer L = <span class="v" id="vL">6</span></label>
+          <input type="range" id="L" min="1" max="48" value="6"></div>
+        <div class="ctl"><label>vocab_size V = <span class="v" id="vV">65</span></label>
+          <input type="range" id="V" min="2" max="50304" step="1" value="65"></div>
+      </div>
+      <div class="stats">
+        <div class="s">헤드 크기 hs = C/nh = <b id="sHS">64</b></div>
+        <div class="s">파라미터(임베딩 제외) ≈ <b id="sParams">10.6M</b></div>
+        <div class="s">배치당 토큰 = B·T = <b id="sTok">16,384</b></div>
+        <div class="s" id="sErr"></div>
+      </div>
+      <div class="toggle">
+        <button id="modeTrain" class="on">학습 (targets 제공)</button>
+        <button id="modeInfer">추론 (생성)</button>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>연산</th><th>출력 모양</th><th>무슨 일이 일어나는가</th></tr></thead>
+        <tbody id="shapeTable"></tbody>
+      </table>
+      <div class="legend">범례: <code>B</code> 배치 · <code>T</code> 시간/컨텍스트 · <code>C</code> 임베딩 ·
+        <code>nh</code> 헤드 · <code>hs</code> 헤드 크기 · <code>V</code> 어휘. <span style="color:var(--pink)">분홍색 행</span>은
+        레이어마다 한 번씩 반복됩니다(<code>×L</code>).</div>
+    </div>
+  </section>
+
+  <!-- 7. TRAIN -->
+  <section id="train">
+    <h2>7 · 학습 루프</h2>
+    <p><code>train.py</code>는 하나의 큰 <code>while True</code> 루프입니다. DDP/로깅을 걷어내면 결국 이게 전부입니다:</p>
+    <div class="codewrap"><span class="lbl">train.py · 단순화</span><code class="codeblock" data-key="trainloop"></code></div>
+
+    <h3>데이터 로더</h3>
+    <p>화려한 <code>DataLoader</code>는 없습니다 — 메모리 매핑된 토큰 id 배열에서 무작위 구간을 잘라낼 뿐입니다.
+    <code>x</code>는 한 구간이고, <code>y</code>는 같은 구간을 오른쪽으로 한 칸 민 것입니다("다음 토큰" 정답).</p>
+    <div class="codewrap"><span class="lbl">train.py</span><code class="codeblock" data-key="getbatch"></code></div>
+    <div class="note"><b><code>y</code>가 <code>x</code>를 1칸 민 이유:</b> 위치 <code>t</code>에서 모델은
+      <code>x[0..t]</code>를 보고 <code>x[t+1]</code>을 예측해야 하는데, 그것이 바로 <code>y[t]</code>입니다. 순전파 한 번이
+      <i>모든</i> 위치에서 동시에 예측을 만들어냅니다 — 그래서 학습이 효율적입니다.</div>
+
+    <h3>핵심 메커니즘</h3>
+    <table>
+      <tr><th>메커니즘</th><th>이유</th></tr>
+      <tr><td><b>그래디언트 누적</b>(<code>gradient_accumulation_steps</code>)</td>
+        <td>여러 마이크로 배치를 돌려 그래디언트를 합한 뒤 한 번의 옵티마이저 스텝 → 작은 VRAM으로 큰 배치를 흉내.</td></tr>
+      <tr><td><b>혼합 정밀도</b>(<code>autocast</code> + <code>GradScaler</code>)</td>
+        <td>속도를 위해 bf16/fp16으로 계산; 스케일러가 fp16 그래디언트 언더플로를 방지.</td></tr>
+      <tr><td><b>코사인 LR 스케줄</b> + 워밍업(<code>get_lr</code>)</td>
+        <td><code>warmup_iters</code> 동안 학습률을 올린 뒤 <code>min_lr</code>까지 코사인으로 감소.</td></tr>
+      <tr><td><b>그래디언트 클리핑</b>(<code>grad_clip</code>)</td>
+        <td>그래디언트 노름을 1.0으로 제한해 나쁜 배치가 가중치를 폭발시키지 못하게 함.</td></tr>
+      <tr><td><b>AdamW + 선택적 가중치 감쇠</b></td>
+        <td>2D 텐서(행렬곱, 임베딩)에는 가중치 감쇠를 적용; bias와 LayerNorm에는 적용 안 함.</td></tr>
+      <tr><td><b>평가 &amp; 체크포인트</b> <code>eval_interval</code>마다</td>
+        <td>많은 배치로 train/val loss를 추정; val loss가 개선되면 <code>ckpt.pt</code> 저장.</td></tr>
+      <tr><td><b>DDP</b>(<code>torchrun</code>)</td>
+        <td>GPU당 프로세스 하나; 매 스텝 그래디언트를 GPU 간 all-reduce(평균).</td></tr>
+    </table>
+
+    <div class="pipe">
+      <div class="blkhdr">최적화 스텝 한 번</div>
+      <div class="row"><div class="box">학습률 설정 <code>get_lr(iter)</code></div></div>
+      <div class="row"><div class="box">× grad_accum: <code>logits,loss = model(X,Y)</code>; <code>loss.backward()</code>; 다음 배치 미리 가져오기</div></div>
+      <div class="row"><div class="box">그래디언트 클립 → <code>optimizer.step()</code> → <code>zero_grad()</code></div></div>
+      <div class="row"><div class="box">eval_interval마다: estimate_loss(); ckpt 저장</div></div>
+    </div>
+  </section>
+
+  <!-- 8. INFER -->
+  <section id="infer">
+    <h2>8 · 추론 / 샘플링</h2>
+    <p>생성은 순전파를 감싼 루프입니다. 매 스텝: 다음 토큰 logits를 예측하고, 토큰 하나를 샘플링하고,
+    이어 붙이고, 반복합니다. 이것이 <b>자기회귀(autoregressive)</b> 디코딩입니다.</p>
+    <div class="codewrap"><span class="lbl">model.py</span><code class="codeblock" data-key="generate"></code></div>
+    <ol>
+      <li><b>컨텍스트 자르기</b> — 마지막 <code>block_size</code> 토큰까지만(모델은 그보다 더 과거를 못 봄).</li>
+      <li><b>순전파</b> → 마지막 위치의 logits만 취함: <code>logits[:, -1, :]</code>, 모양 <code>[B, V]</code>.</li>
+      <li><b>온도(temperature)</b>가 logits를 나눔: &lt;1이면 날카롭게(안전), &gt;1이면 평평하게(과감).</li>
+      <li><b>top-k</b> — 샘플링 전에 가장 가능성 높은 <code>k</code>개를 제외한 나머지를 0으로.</li>
+      <li><b>소프트맥스 → 다항 샘플링</b> → 새 토큰 id 하나를 시퀀스에 이어 붙임.</li>
+    </ol>
+    <div class="tip"><code>generate()</code>의 <code>@torch.no_grad()</code>는 그래디언트 추적을 끕니다 — 추론은
+      학습하지 않으므로, 역전파 부기(bookkeeping)를 건너뛰어 메모리와 시간을 아낍니다.</div>
+    <p><code>sample.py</code>가 이를 감쌉니다: 체크포인트를 불러오고, <code>meta.pkl</code>(문자 단위)에서
+    인코더/디코더를 재구성하거나 <code>tiktoken</code>의 GPT-2 BPE로 폴백하고, <code>start</code> 프롬프트를 인코딩하고,
+    <code>generate()</code>를 호출한 뒤, id를 다시 텍스트로 디코딩합니다.</p>
+  </section>
+
+  <!-- 9. SHAPES -->
+  <section id="shapes">
+    <h2>9 · 각 단계의 텐서 모양 출력하기</h2>
+    <p>두 가지 방법이 있습니다. 쉬운 것부터.</p>
+
+    <h3>방법 A — 수정 없음: <code>shapes_demo.py</code> 실행</h3>
+    <p>이 가이드가 저장소에 <code>shapes_demo.py</code>를 추가했습니다. 작은 모델을 만들고 모든 레이어에
+    <b>순전파 후크(forward hook)</b>를 붙여 각 모듈의 입력/출력 모양을 출력합니다 — <code>model.py</code> 수정 없이.</p>
+    <div class="codewrap"><span class="lbl">shell</span><code class="codeblock" data-key="run_demo"></code></div>
+    <p>예상 출력(설정 <code>B=4, T=8, C=32, nh=4, L=2, V=65</code>에 대해 모양은 결정적입니다):</p>
+    <div class="codewrap"><span class="lbl">output</span><code class="codeblock" data-key="demo_out"></code></div>
+    <div class="note"><b>후크는 모듈에서만 발동합니다.</b> 내부 <code>q/k/v</code> 재배열과
+      <code>[B,nh,T,T]</code> 어텐션 행렬은 하나의 <code>forward()</code> <i>내부</i>에 살며 모듈이 아니므로
+      여기에는 나타나지 않습니다(flash attention도 융합된 단일 호출로 실행됨). 그것들을 보려면 방법 B를 쓰세요. ↓</div>
+
+    <h3>방법 B — 내부까지 보기: <code>model.py</code>에 작은 수정 4곳</h3>
+    <p>게이트가 걸린 <code>dbg()</code> 헬퍼를 추가한 뒤 <code>dbg(name, tensor)</code> 호출을 곳곳에 뿌립니다.
+    환경 변수로 제어되며 <b>첫 순전파에서만</b> 출력하므로, 학습 로그를 어지럽히지 않습니다.</p>
+
+    <p><b>수정 1.</b> <code>model.py</code> 상단의 import 뒤에 다음을 추가:</p>
+    <div class="codewrap"><span class="lbl">model.py · 추가</span><code class="codeblock" data-key="dbg_helper"></code></div>
+
+    <p><b>수정 2.</b> <code>CausalSelfAttention.forward</code> 본문을 이 주석 버전으로 교체(로직은 동일,
+    <code>dbg</code> 줄만 추가):</p>
+    <div class="codewrap"><span class="lbl">model.py · CausalSelfAttention.forward</span><code class="codeblock" data-key="dbg_attn"></code></div>
+
+    <p><b>수정 3.</b> <code>MLP.forward</code>에서 각 줄 뒤에 <code>dbg</code>를 추가:</p>
+    <div class="codewrap"><span class="lbl">model.py · MLP.forward</span><code class="codeblock" data-key="dbg_mlp"></code></div>
+
+    <p><b>수정 4.</b> <code>GPT.forward</code>에서 상단에 토글을 추가하고, 본문 곳곳에 <code>dbg</code>를 넣고,
+    <code>return</code> 직전에 토글을 리셋:</p>
+    <div class="codewrap"><span class="lbl">model.py · GPT.forward</span><code class="codeblock" data-key="dbg_forward"></code></div>
+
+    <p><b>실행</b>은 환경 변수를 설정해서 합니다. <code>--compile=False</code>(<code>torch.compile</code>은 파이썬 print를
+    삼킴)와 작은 배치를 사용하세요:</p>
+    <div class="codewrap"><span class="lbl">shell</span><code class="codeblock" data-key="dbg_run"></code></div>
+    <p>그러면 후크로는 닿을 수 없는 <code>q/k/v</code> 헤드 재배열과 어텐션 행렬을 포함한 전체 내부 추적이
+    딱 한 번 출력됩니다:</p>
+    <div class="codewrap"><span class="lbl">output · DEBUG_SHAPES=1</span><code class="codeblock" data-key="dbg_out"></code></div>
+
+    <div class="warn"><b>참고.</b> (1) 블록 내부 줄들은 그 첫 순전파에서 <code>n_layer</code>번 반복됩니다 —
+      매번 동일한 모양이며, 그것이 <i>바로</i> 핵심입니다(동일한 블록을 쌓은 것). 첫 레이어만 출력하려면 레이어 인덱스로
+      게이트를 거세요. (2) 비(非)flash 어텐션 경로는 마스킹된 <code>[B,nh,T,T]</code> 행렬도 드러냅니다;
+      flash 모드는 그것을 메모리에 만들지 않고 계산합니다. (3) 실제 학습 전에는 이 수정들을 되돌리거나
+      <code>DEBUG_SHAPES</code>를 설정하지 않은 채로 두세요.</div>
+  </section>
+
+  <!-- 10. CHEATS -->
+  <section id="cheats">
+    <h2>10 · 치트 시트</h2>
+    <table>
+      <tr><th>하고 싶은 것</th><th>이렇게 하세요</th></tr>
+      <tr><td>Mac에서 작은 셰익스피어 학습</td><td><code>python train.py config/train_shakespeare_char.py --device=cpu --compile=False</code></td></tr>
+      <tr><td>그 모델에서 샘플링</td><td><code>python sample.py --out_dir=out-shakespeare-char --device=cpu</code></td></tr>
+      <tr><td>학습 없이 진짜 GPT-2로 생성</td><td><code>python sample.py --init_from=gpt2 --start="Once upon a time"</code></td></tr>
+      <tr><td>중단된 학습 재개</td><td><code>python train.py config/... --init_from=resume</code></td></tr>
+      <tr><td>내 데이터로 GPT-2 파인튜닝</td><td><code>python train.py --init_from=gpt2 --dataset=yourdata</code></td></tr>
+      <tr><td>모듈 모양 보기(수정 없음)</td><td><code>python shapes_demo.py</code></td></tr>
+      <tr><td>내부 모양 보기(수정 후)</td><td><code>DEBUG_SHAPES=1 python shapes_demo.py</code> &nbsp;(§9 방법 B 적용 후)</td></tr>
+      <tr><td>멀티 GPU 학습</td><td><code>torchrun --standalone --nproc_per_node=4 train.py config/...</code></td></tr>
+    </table>
+    <h3>모양 용어집</h3>
+    <table>
+      <tr><th>기호</th><th>= config 필드</th><th>셰익스피어</th><th>GPT-2 124M</th></tr>
+      <tr><td>B</td><td>batch_size</td><td>64</td><td>12 (×40 grad-accum)</td></tr>
+      <tr><td>T</td><td>block_size</td><td>256</td><td>1024</td></tr>
+      <tr><td>C</td><td>n_embd</td><td>384</td><td>768</td></tr>
+      <tr><td>nh</td><td>n_head</td><td>6</td><td>12</td></tr>
+      <tr><td>hs = C/nh</td><td>헤드 크기</td><td>64</td><td>64</td></tr>
+      <tr><td>L</td><td>n_layer</td><td>6</td><td>12</td></tr>
+      <tr><td>V</td><td>vocab_size</td><td>65</td><td>50304</td></tr>
+    </table>
+    <hr>
+    <p class="small">nanoGPT 저장소를 위해 생성 · 동반 파일: <code>shapes_demo.py</code> ·
+      이 파일은 브라우저에서 완전히 오프라인으로 열 수 있습니다.</p>
+  </section>
+</main>
+</div>
+
+<script>
+// ---------- 코드 스니펫 (HTML 이스케이프를 피하려고 JS 문자열로 보관) ----------
+const CODE = {
+install:
+`# 활성화된 파이썬 환경(conda/venv) 안에서
+pip install torch numpy transformers datasets tiktoken wandb tqdm`,
+
+prepare:
+`python data/shakespeare_char/prepare.py
+# -> 문자 단위 데이터 길이: 1,115,394
+# -> vocab size: 65
+# train.bin, val.bin, meta.pkl 생성`,
+
+train_mac:
+`python train.py config/train_shakespeare_char.py \\
+  --device=cpu --compile=False
+# (Apple GPU: cpu 대신 --device=mps 사용)`,
+
+train_gpu:
+`python train.py config/train_shakespeare_char.py
+# A100 한 장에서 ~3분, 최적 val loss ~1.47`,
+
+sample:
+`python sample.py --out_dir=out-shakespeare-char --device=cpu`,
+
+sample_prompt:
+`python sample.py --out_dir=out-shakespeare-char \\
+  --start="ROMEO:" --num_samples=3 --max_new_tokens=300`,
+
+sample_gpt2:
+`python sample.py --init_from=gpt2-xl \\
+  --start="The meaning of life is" --num_samples=5`,
+
+cfg:
+`@dataclass
+class GPTConfig:
+    block_size: int = 1024   # T : 최대 컨텍스트 길이
+    vocab_size: int = 50304  # V : 토큰 개수
+    n_layer: int = 12        # L : Block 개수
+    n_head: int = 12         # nh: 어텐션 헤드
+    n_embd: int = 768        # C : 임베딩 폭
+    dropout: float = 0.0
+    bias: bool = True`,
+
+attn:
+`def forward(self, x):
+    B, T, C = x.size()   # 배치, 시간, 채널(=n_embd)
+
+    # 한 번의 행렬곱 -> Q,K,V, 그리고 마지막 차원을 셋으로 분리
+    q, k, v = self.c_attn(x).split(self.n_embd, dim=2)   # 각각 (B, T, C)
+
+    # C를 hs=C/nh 크기의 nh개 헤드로 분할 ; 헤드를 앞으로 이동
+    k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
+    q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
+    v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
+
+    if self.flash:   # 빠른 융합 커널, 수학은 동일
+        y = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+    else:            # 명시적 버전 ([B,nh,T,T] 행렬이 보임)
+        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))  # (B,nh,T,T)
+        att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))  # 인과 마스크
+        att = F.softmax(att, dim=-1)
+        y = att @ v   # (B,nh,T,T) x (B,nh,T,hs) -> (B,nh,T,hs)
+
+    y = y.transpose(1, 2).contiguous().view(B, T, C)  # 헤드 병합 -> (B,T,C)
+    y = self.resid_dropout(self.c_proj(y))            # 출력 투영
+    return y`,
+
+mlp:
+`def forward(self, x):
+    x = self.c_fc(x)     # (B,T,C) -> (B,T,4C)   확장
+    x = self.gelu(x)     # 비선형성
+    x = self.c_proj(x)   # (B,T,4C) -> (B,T,C)   다시 투영
+    x = self.dropout(x)
+    return x`,
+
+block:
+`def forward(self, x):
+    x = x + self.attn(self.ln_1(x))   # 어텐션 서브레이어 + 잔차
+    x = x + self.mlp(self.ln_2(x))    # MLP 서브레이어 + 잔차
+    return x`,
+
+forward:
+`def forward(self, idx, targets=None):
+    b, t = idx.size()
+    pos = torch.arange(0, t, device=idx.device)        # (t,)
+
+    tok_emb = self.transformer.wte(idx)   # (b, t, C)  토큰 의미
+    pos_emb = self.transformer.wpe(pos)   # (t, C)     위치 정보
+    x = self.transformer.drop(tok_emb + pos_emb)        # (b, t, C)
+
+    for block in self.transformer.h:      # L개의 블록 스택
+        x = block(x)                      # 내내 (b, t, C)
+    x = self.transformer.ln_f(x)          # (b, t, C)
+
+    if targets is not None:               # 학습
+        logits = self.lm_head(x)          # (b, t, V)
+        loss = F.cross_entropy(logits.view(-1, logits.size(-1)),
+                               targets.view(-1), ignore_index=-1)
+    else:                                 # 추론: 마지막 위치만
+        logits = self.lm_head(x[:, [-1], :])   # (b, 1, V)
+        loss = None
+    return logits, loss`,
+
+trainloop:
+`X, Y = get_batch('train')                 # X,Y: (B, T) 토큰 id
+while True:
+    lr = get_lr(iter_num)                 # 워밍업 포함 코사인 스케줄
+    for g in optimizer.param_groups: g['lr'] = lr
+
+    if iter_num % eval_interval == 0:     # 주기적으로 평가 + 저장
+        losses = estimate_loss()
+        print(f"step {iter_num}: val {losses['val']:.4f}")
+        torch.save(checkpoint, 'out/ckpt.pt')
+
+    for micro in range(grad_accum_steps): # 마이크로 배치에 걸쳐 누적
+        with ctx:                         # 혼합 정밀도 autocast
+            logits, loss = model(X, Y)    # 순전파 -> loss
+            loss = loss / grad_accum_steps
+        X, Y = get_batch('train')         # 다음 배치 미리 가져오기
+        scaler.scale(loss).backward()     # 역전파 (그래디언트 누적)
+
+    clip_grad_norm_(model.parameters(), grad_clip)
+    scaler.step(optimizer); scaler.update()   # 가중치 갱신
+    optimizer.zero_grad(set_to_none=True)
+    iter_num += 1
+    if iter_num > max_iters: break`,
+
+getbatch:
+`def get_batch(split):
+    data = np.memmap('data/.../train.bin', dtype=np.uint16, mode='r')
+    ix = torch.randint(len(data) - block_size, (batch_size,))   # 무작위 시작점
+    x = torch.stack([torch.from_numpy(data[i      : i+block_size  ]) for i in ix])
+    y = torch.stack([torch.from_numpy(data[i+1    : i+1+block_size]) for i in ix])
+    #   x: (B, T)   입력 구간
+    #   y: (B, T)   같은 구간을 오른쪽으로 1칸 민 것 == 다음 토큰 정답
+    return x.to(device), y.to(device)`,
+
+generate:
+`@torch.no_grad()
+def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None):
+    for _ in range(max_new_tokens):
+        idx_cond = idx[:, -self.config.block_size:]   # 컨텍스트 창으로 자르기
+        logits, _ = self(idx_cond)                    # (B, 1, V)
+        logits = logits[:, -1, :] / temperature       # (B, V) 마지막 스텝
+        if top_k is not None:                         # top-k개만 남김
+            v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+            logits[logits < v[:, [-1]]] = -float('Inf')
+        probs = F.softmax(logits, dim=-1)             # (B, V) 확률
+        idx_next = torch.multinomial(probs, num_samples=1)   # (B, 1) 샘플
+        idx = torch.cat((idx, idx_next), dim=1)       # 이어 붙이고 반복
+    return idx`,
+
+run_demo:
+`python shapes_demo.py`,
+
+demo_out:
+`config: B=4 T=8 n_embd=32 n_head=4 n_layer=2 vocab=65 head_size=8
+
+input idx (token ids)    -           in=-                out=(4, 8)
+------------------------------------------------------------------------------
+transformer.wte          Embedding   in=(4, 8)           out=(4, 8, 32)
+transformer.wpe          Embedding   in=(8,)             out=(8, 32)
+transformer.drop         Dropout     in=(4, 8, 32)       out=(4, 8, 32)
+h.0.ln_1                 LayerNorm   in=(4, 8, 32)       out=(4, 8, 32)
+h.0.attn.c_attn          Linear      in=(4, 8, 32)       out=(4, 8, 96)
+h.0.attn.c_proj          Linear      in=(4, 8, 32)       out=(4, 8, 32)
+h.0.attn.resid_dropout   Dropout     in=(4, 8, 32)       out=(4, 8, 32)
+h.0.ln_2                 LayerNorm   in=(4, 8, 32)       out=(4, 8, 32)
+h.0.mlp.c_fc             Linear      in=(4, 8, 32)       out=(4, 8, 128)
+h.0.mlp.gelu             GELU        in=(4, 8, 128)      out=(4, 8, 128)
+h.0.mlp.c_proj           Linear      in=(4, 8, 128)      out=(4, 8, 32)
+h.0.mlp.dropout          Dropout     in=(4, 8, 32)       out=(4, 8, 32)
+h.1.ln_1                 LayerNorm   in=(4, 8, 32)       out=(4, 8, 32)
+h.1.attn.c_attn          Linear      in=(4, 8, 32)       out=(4, 8, 96)
+h.1.attn.c_proj          Linear      in=(4, 8, 32)       out=(4, 8, 32)
+h.1.attn.resid_dropout   Dropout     in=(4, 8, 32)       out=(4, 8, 32)
+h.1.ln_2                 LayerNorm   in=(4, 8, 32)       out=(4, 8, 32)
+h.1.mlp.c_fc             Linear      in=(4, 8, 32)       out=(4, 8, 128)
+h.1.mlp.gelu             GELU        in=(4, 8, 128)      out=(4, 8, 128)
+h.1.mlp.c_proj           Linear      in=(4, 8, 128)      out=(4, 8, 32)
+h.1.mlp.dropout          Dropout     in=(4, 8, 32)       out=(4, 8, 32)
+ln_f                     LayerNorm   in=(4, 8, 32)       out=(4, 8, 32)
+------------------------------------------------------------------------------
+logits (all positions)   Linear      in=-                out=(4, 8, 65)
+loss (scalar)            cross_entropy in=-              out=()  value=4.7xxx
+# 참고: c_attn 출력 96 = 3*C ; mlp c_fc 출력 128 = 4*C ; logits 마지막 차원 65 = vocab
+# attn_dropout은 나타나지 않음: flash attention이 건너뜀`,
+
+dbg_helper:
+`import os
+DEBUG_SHAPES = os.environ.get("DEBUG_SHAPES", "0") == "1"
+_dbg = {"on": False, "done": False}   # 첫 순전파에서만 출력
+
+def dbg(name, t):
+    if DEBUG_SHAPES and _dbg["on"]:
+        print(f"  {name:<22} {tuple(t.shape)}")`,
+
+dbg_attn:
+`def forward(self, x):
+    B, T, C = x.size()
+    dbg("attn in x", x)                       # (B, T, C)
+    qkv = self.c_attn(x)
+    dbg("c_attn(x) qkv", qkv)                  # (B, T, 3C)
+    q, k, v = qkv.split(self.n_embd, dim=2)
+    dbg("q (before heads)", q)                 # (B, T, C)
+
+    k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+    q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+    v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+    dbg("q (heads)", q)                        # (B, nh, T, hs)
+
+    if self.flash:
+        y = torch.nn.functional.scaled_dot_product_attention(
+            q, k, v, attn_mask=None,
+            dropout_p=self.dropout if self.training else 0, is_causal=True)
+    else:
+        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        dbg("att = q @ k^T", att)              # (B, nh, T, T)
+        att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+        att = F.softmax(att, dim=-1)
+        att = self.attn_dropout(att)
+        y = att @ v
+    dbg("y (heads)", y)                        # (B, nh, T, hs)
+
+    y = y.transpose(1, 2).contiguous().view(B, T, C)
+    dbg("y (merged heads)", y)                 # (B, T, C)
+    y = self.resid_dropout(self.c_proj(y))
+    dbg("attn out", y)                         # (B, T, C)
+    return y`,
+
+dbg_mlp:
+`def forward(self, x):
+    x = self.c_fc(x);    dbg("mlp c_fc", x)     # (B, T, 4C)
+    x = self.gelu(x);    dbg("mlp gelu", x)     # (B, T, 4C)
+    x = self.c_proj(x);  dbg("mlp c_proj", x)   # (B, T, C)
+    x = self.dropout(x)
+    return x`,
+
+dbg_forward:
+`def forward(self, idx, targets=None):
+    device = idx.device
+    b, t = idx.size()
+    if DEBUG_SHAPES and not _dbg["done"]:       # 출력기 무장
+        _dbg["on"] = True
+        print("=== forward shapes (첫 순전파에서만) ===")
+    dbg("idx (token ids)", idx)                 # (b, t)
+
+    assert t <= self.config.block_size
+    pos = torch.arange(0, t, dtype=torch.long, device=device)
+    dbg("pos", pos)                             # (t,)
+    tok_emb = self.transformer.wte(idx)
+    dbg("tok_emb = wte(idx)", tok_emb)          # (b, t, C)
+    pos_emb = self.transformer.wpe(pos)
+    dbg("pos_emb = wpe(pos)", pos_emb)          # (t, C)
+    x = self.transformer.drop(tok_emb + pos_emb)
+    dbg("x = tok+pos", x)                       # (b, t, C)
+    for block in self.transformer.h:
+        x = block(x)
+    dbg("x after blocks", x)                    # (b, t, C)
+    x = self.transformer.ln_f(x)
+    dbg("x after ln_f", x)                      # (b, t, C)
+
+    if targets is not None:
+        logits = self.lm_head(x)
+        dbg("logits (train)", logits)           # (b, t, V)
+        loss = F.cross_entropy(logits.view(-1, logits.size(-1)),
+                               targets.view(-1), ignore_index=-1)
+    else:
+        logits = self.lm_head(x[:, [-1], :])
+        dbg("logits (infer)", logits)           # (b, 1, V)
+        loss = None
+
+    if _dbg["on"]:                              # 한 번 출력 후 조용히
+        _dbg["on"] = False
+        _dbg["done"] = True
+    return logits, loss`,
+
+dbg_run:
+`# 어떤 진입점이든 동작; sample이 가장 단순한 단일 순전파
+DEBUG_SHAPES=1 python shapes_demo.py
+# 또는, 실제 체크포인트로:
+DEBUG_SHAPES=1 python sample.py --out_dir=out-shakespeare-char \\
+  --device=cpu --compile=False --num_samples=1 --max_new_tokens=1`,
+
+dbg_out:
+`=== forward shapes (첫 순전파에서만) ===
+  idx (token ids)        (4, 8)
+  pos                    (8,)
+  tok_emb = wte(idx)     (4, 8, 32)
+  pos_emb = wpe(pos)     (8, 32)
+  x = tok+pos            (4, 8, 32)
+  attn in x              (4, 8, 32)
+  c_attn(x) qkv          (4, 8, 96)
+  q (before heads)       (4, 8, 32)
+  q (heads)              (4, 4, 8, 8)
+  y (heads)              (4, 4, 8, 8)
+  y (merged heads)       (4, 8, 32)
+  attn out               (4, 8, 32)
+  mlp c_fc               (4, 8, 128)
+  mlp gelu               (4, 8, 128)
+  mlp c_proj             (4, 8, 32)
+  ...(블록 2가 같은 모양을 반복)...
+  x after blocks         (4, 8, 32)
+  x after ln_f           (4, 8, 32)
+  logits (train)         (4, 8, 65)
+# q (heads) = (B, nh, T, hs) = (4, 4, 8, 8). 비flash 경로에서는
+# "att = q @ k^T  (4, 4, 8, 8)" -> (B, nh, T, T) 어텐션 행렬도 보입니다.`,
+};
+
+// ---------- 작은 파이썬 구문 강조기 (안전한 1패스) ----------
+const KW = new Set(("def class return if else elif for while import from as with in not and or "+
+  "None True False self lambda assert is global nonlocal try except finally raise yield pass "+
+  "break continue print").split(" "));
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function highlight(src){
+  const e = esc(src);
+  // 단일 정규식, 순서: 주석 | 큰따옴표 문자열 | 작은따옴표 문자열 | 숫자 | 단어
+  const re = /(#[^\n]*)|("(?:[^"\\]|\\.)*")|('(?:[^'\\]|\\.)*')|(\b\d+\.?\d*\b)|([A-Za-z_]\w*)/g;
+  return e.replace(re,(m,com,dq,sq,num,word)=>{
+    if(com!==undefined) return '<span class="tok-com">'+com+'</span>';
+    if(dq!==undefined)  return '<span class="tok-str">'+dq+'</span>';
+    if(sq!==undefined)  return '<span class="tok-str">'+sq+'</span>';
+    if(num!==undefined) return '<span class="tok-num">'+num+'</span>';
+    if(word!==undefined) return KW.has(word)
+        ? '<span class="tok-kw">'+word+'</span>' : word;
+    return m;
+  });
+}
+
+// 코드 블록 채우기 + 복사 버튼 추가
+document.querySelectorAll('.codeblock').forEach(el=>{
+  const key = el.getAttribute('data-key');
+  const raw = CODE[key] || '(누락된 스니펫: '+key+')';
+  el.innerHTML = highlight(raw);
+  const wrap = el.closest('.codewrap') || el.parentElement;
+  const btn = document.createElement('button');
+  btn.className='copy'; btn.textContent='복사';
+  btn.onclick=()=>{navigator.clipboard.writeText(raw).then(()=>{
+    btn.textContent='복사됨'; btn.classList.add('ok');
+    setTimeout(()=>{btn.textContent='복사'; btn.classList.remove('ok');},1200);
+  });};
+  wrap.appendChild(btn);
+});
+
+// ---------- 스크롤스파이 ----------
+const links = [...document.querySelectorAll('nav.side a')];
+const map = {}; links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+const obs = new IntersectionObserver(entries=>{
+  entries.forEach(en=>{
+    if(en.isIntersecting){
+      links.forEach(a=>a.classList.remove('active'));
+      const a = map[en.target.id]; if(a) a.classList.add('active');
+    }
+  });
+},{rootMargin:'-20% 0px -70% 0px'});
+document.querySelectorAll('section').forEach(s=>obs.observe(s));
+
+// ---------- 인터랙티브 모양 탐색기 ----------
+const els = {B:'B',T:'T',C:'C',H:'H',L:'L',V:'V'};
+const get = id => +document.getElementById(id).value;
+const presets = {
+  'Shakespeare (10.6M)': {B:64,T:256,C:384,H:6,L:6,V:65},
+  'GPT-2 (124M)':        {B:12,T:1024,C:768,H:12,L:12,V:50304},
+  'GPT-2-medium (350M)': {B:8,T:1024,C:1024,H:16,L:24,V:50304},
+  'GPT-2-xl (1.5B)':     {B:4,T:1024,C:1600,H:25,L:48,V:50304},
+  '미니 데모':            {B:4,T:8,C:32,H:4,L:2,V:65},
+};
+let mode = 'train';
+
+function fmt(n){ // 12345678 -> 12.3M
+  if(n>=1e9) return (n/1e9).toFixed(2)+'B';
+  if(n>=1e6) return (n/1e6).toFixed(2)+'M';
+  if(n>=1e3) return (n/1e3).toFixed(1)+'K';
+  return ''+n;
+}
+function commas(n){return n.toLocaleString('en-US');}
+
+function shp(arr){return '['+arr.join(', ')+']';}
+
+function rows(B,T,C,H,L,V){
+  const hs = Math.floor(C/H);
+  const r = [];
+  const P=(p)=>r.push({phase:p});
+  const S=(name,shape,note)=>r.push({name,shape,note});
+  P('입력');
+  S('get_batch → idx', [B,T], '토큰 id (int64)');
+  if(mode==='train') S('get_batch → targets', [B,T], '다음 토큰 정답(label)');
+  P('임베딩');
+  S('wte(idx) 토큰 임베딩', [B,T,C], '각 id를 C차원 벡터로 조회');
+  S('arange → pos', [T], '위치 인덱스 0..T-1');
+  S('wpe(pos) 위치 임베딩', [T,C], '각 위치를 조회');
+  S('drop(tok_emb + pos_emb)', [B,T,C], '브로드캐스트 덧셈; 이것이 x');
+  P('트랜스포머 블록마다  ×L');
+  S('ln_1(x)', [B,T,C], '사전 정규화(pre-norm)');
+  S('c_attn(x)', [B,T,3*C], '한 번의 행렬곱 → q,k,v 묶음');
+  S('split → q, k, v', [B,T,C], '각각 (B,T,C)');
+  S('view+transpose → 헤드', [B,H,T,hs], 'C를 hs 크기의 nh개 헤드로 분할');
+  S('q @ kᵀ · 1/√hs  → att', [B,H,T,T], '토큰 간 점수');
+  S('softmax(att) (인과)', [B,H,T,T], '어텐션 가중치');
+  S('att @ v', [B,H,T,hs], 'value의 가중합');
+  S('헤드 병합', [B,T,C], 'transpose 후 다시 view');
+  S('c_proj(y)  → attn 출력', [B,T,C], '출력 투영');
+  S('x = x + attn', [B,T,C], '잔차(residual) 덧셈');
+  S('ln_2(x)', [B,T,C], '사전 정규화(pre-norm)');
+  S('mlp.c_fc', [B,T,4*C], '4배 확장');
+  S('gelu', [B,T,4*C], '비선형 활성화');
+  S('mlp.c_proj', [B,T,C], '원래 차원으로 투영');
+  S('x = x + mlp', [B,T,C], '잔차(residual) 덧셈');
+  P('출력 헤드');
+  S('ln_f(x)', [B,T,C], '마지막 LayerNorm');
+  if(mode==='train'){
+    S('lm_head(x)  → logits', [B,T,V], '모든 위치에서 모든 토큰에 점수');
+    S('cross_entropy → loss', [], '스칼라; targets와 비교');
+  }else{
+    S('lm_head(x[:, -1])  → logits', [B,1,V], '마지막 위치만 필요');
+    S('softmax → multinomial', [B,1], '다음 토큰 id 1개 샘플링');
+  }
+  return {rows:r, hs};
+}
+
+function paramsNonEmb(C,L,V){ // nanoGPT get_num_params와 일치 (bias 없는 근사)
+  // wte(V*C, 공유되며 카운트됨) + L*(12C^2 + 2C) + ln_f(C)
+  return V*C + L*(12*C*C + 2*C) + C;
+}
+
+function render(){
+  const B=get('B'),T=get('T'),C=get('C'),H=get('H'),L=get('L'),V=get('V');
+  document.getElementById('vB').textContent=B;
+  document.getElementById('vT').textContent=T;
+  document.getElementById('vC').textContent=C;
+  document.getElementById('vH').textContent=H;
+  document.getElementById('vL').textContent=L;
+  document.getElementById('vV').textContent=commas(V);
+
+  const errEl=document.getElementById('sErr');
+  const tbody=document.getElementById('shapeTable');
+  if(C % H !== 0){
+    errEl.innerHTML='<span class="err">⚠ n_embd ('+C+')는 n_head ('+H+')로 나눠떨어져야 합니다</span>';
+    document.getElementById('sHS').textContent='—';
+  } else {
+    errEl.textContent='';
+  }
+  const {rows:rs, hs}=rows(B,T,C,H,L,V);
+  document.getElementById('sHS').textContent=(C%H===0)?hs:'—';
+  document.getElementById('sParams').textContent='~'+fmt(paramsNonEmb(C,L,V));
+  document.getElementById('sTok').textContent=commas(B*T);
+
+  let html='', n=0;
+  for(const row of rs){
+    if(row.phase){
+      html+='<tr class="phase"><td></td><td colspan="3">'+row.phase+'</td></tr>';
+    }else{
+      n++;
+      html+='<tr><td>'+n+'</td><td>'+row.name+'</td><td>'+shp(row.shape)+
+            '</td><td>'+row.note+'</td></tr>';
+    }
+  }
+  tbody.innerHTML=html;
+}
+
+// 프리셋 버튼
+const pdiv=document.getElementById('presets');
+Object.keys(presets).forEach((name,i)=>{
+  const b=document.createElement('button');
+  b.textContent=name; if(i===0) b.classList.add('sel');
+  b.onclick=()=>{
+    const p=presets[name];
+    document.getElementById('B').value=p.B;
+    document.getElementById('T').value=p.T;
+    document.getElementById('C').value=p.C;
+    document.getElementById('H').value=p.H;
+    document.getElementById('L').value=p.L;
+    document.getElementById('V').value=p.V;
+    [...pdiv.children].forEach(c=>c.classList.remove('sel'));
+    b.classList.add('sel');
+    render();
+  };
+  pdiv.appendChild(b);
+});
+['B','T','C','H','L','V'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',()=>{
+    [...pdiv.children].forEach(c=>c.classList.remove('sel'));
+    render();
+  });
+});
+document.getElementById('modeTrain').onclick=()=>{
+  mode='train';
+  document.getElementById('modeTrain').classList.add('on');
+  document.getElementById('modeInfer').classList.remove('on');
+  render();
+};
+document.getElementById('modeInfer').onclick=()=>{
+  mode='infer';
+  document.getElementById('modeInfer').classList.add('on');
+  document.getElementById('modeTrain').classList.remove('on');
+  render();
+};
+render();
+</script>
+</body>
+</html>

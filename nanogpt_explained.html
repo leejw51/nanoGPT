@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nanoGPT, explained from scratch</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --border:#2b3543;
+    --fg:#e6edf3; --muted:#9aa7b4; --accent:#58a6ff; --accent2:#3fb950;
+    --kw:#ff7b72; --str:#a5d6ff; --num:#d2a8ff; --com:#7d8590;
+    --warn:#e3b341; --pink:#f778ba; --mono:"SF Mono", "JetBrains Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.65;font-size:16px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:var(--mono);font-size:.88em;background:#21262d;padding:.12em .4em;border-radius:5px;color:#e6edf3}
+  h1,h2,h3{line-height:1.25}
+  h2{font-size:1.7rem;margin:0 0 .2em;padding-bottom:.3em;border-bottom:1px solid var(--border)}
+  h3{font-size:1.2rem;color:var(--accent);margin-top:1.8em}
+  p{color:#d3dbe3}
+  .layout{display:flex;min-height:100vh}
+
+  /* sidebar */
+  nav.side{width:262px;flex:0 0 262px;background:var(--panel);border-right:1px solid var(--border);
+    position:sticky;top:0;height:100vh;overflow-y:auto;padding:22px 0}
+  nav.side .brand{padding:0 22px 14px;font-weight:700;font-size:1.05rem;letter-spacing:.3px}
+  nav.side .brand span{color:var(--accent)}
+  nav.side .sub{padding:0 22px 16px;color:var(--muted);font-size:.78rem;border-bottom:1px solid var(--border);margin-bottom:10px}
+  nav.side a{display:block;color:var(--muted);padding:7px 22px;font-size:.9rem;border-left:3px solid transparent}
+  nav.side a:hover{color:var(--fg);background:#1b212b;text-decoration:none}
+  nav.side a.active{color:var(--fg);border-left-color:var(--accent);background:#1b2230;font-weight:600}
+  nav.side .grp{padding:14px 22px 4px;color:#5b6673;font-size:.7rem;text-transform:uppercase;letter-spacing:1px}
+
+  main{flex:1;min-width:0;padding:38px 52px 120px;max-width:1080px;margin:0 auto}
+  section{margin-bottom:62px;scroll-margin-top:20px}
+  .lead{font-size:1.08rem;color:var(--muted)}
+
+  .hero{background:linear-gradient(135deg,#161b22,#1c2942);border:1px solid var(--border);
+    border-radius:14px;padding:30px 34px;margin-bottom:40px}
+  .hero h1{margin:0 0 .25em;font-size:2.2rem}
+  .hero .tag{display:inline-block;background:#21364f;color:#9ecbff;
+    padding:3px 11px;border-radius:20px;font-size:.74rem;margin-right:7px;border:1px solid #2f4f6f}
+  .pills span{display:inline-block;background:#1f2630;border:1px solid var(--border);color:var(--muted);
+    padding:3px 11px;border-radius:20px;font-size:.74rem;margin:4px 6px 0 0}
+
+  /* code blocks */
+  .codewrap{position:relative;margin:16px 0}
+  .codewrap .lbl{position:absolute;top:0;left:14px;transform:translateY(-50%);
+    background:var(--accent);color:#0d1117;font-size:.66rem;font-weight:700;letter-spacing:.5px;
+    padding:2px 9px;border-radius:5px;text-transform:uppercase}
+  pre{background:#0a0e14;border:1px solid var(--border);border-radius:10px;padding:18px 16px;
+    overflow-x:auto;margin:0;font-size:.85rem}
+  pre code{background:none;padding:0;font-size:inherit;color:#c9d1d9;display:block;white-space:pre}
+  .copy{position:absolute;top:9px;right:9px;background:#21262d;border:1px solid var(--border);
+    color:var(--muted);font-size:.72rem;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:var(--mono)}
+  .copy:hover{color:var(--fg);border-color:var(--accent)}
+  .copy.ok{color:var(--accent2);border-color:var(--accent2)}
+  .tok-kw{color:var(--kw)} .tok-str{color:var(--str)} .tok-num{color:var(--num)}
+  .tok-com{color:var(--com);font-style:italic} .tok-fn{color:#d2a8ff}
+
+  /* callouts */
+  .note{border-left:4px solid var(--accent);background:#11253c;padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0}
+  .warn{border-left:4px solid var(--warn);background:#2a230f;padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0}
+  .tip{border-left:4px solid var(--accent2);background:#0f2a17;padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0}
+  .note b,.warn b,.tip b{color:var(--fg)}
+
+  /* tables */
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:.9rem}
+  th,td{border:1px solid var(--border);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--fg);font-weight:600}
+  td code{font-size:.82rem}
+  tr:nth-child(even) td{background:#10151c}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px}
+  .card h4{margin:0 0 6px;color:var(--accent)}
+  .card .f{font-family:var(--mono);font-size:.8rem;color:var(--pink)}
+  .card p{margin:.4em 0 0;font-size:.86rem;color:var(--muted)}
+
+  details{background:var(--panel);border:1px solid var(--border);border-radius:10px;margin:14px 0;padding:0 16px}
+  details[open]{padding-bottom:12px}
+  summary{cursor:pointer;padding:13px 0;font-weight:600;color:var(--fg)}
+  summary:hover{color:var(--accent)}
+
+  /* pipeline diagram */
+  .pipe{display:flex;flex-direction:column;gap:6px;margin:18px 0;font-family:var(--mono);font-size:.84rem}
+  .pipe .row{display:flex;align-items:center;gap:12px}
+  .pipe .box{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:8px 13px;flex:1}
+  .pipe .box b{color:var(--accent)}
+  .pipe .shp{color:var(--accent2);white-space:nowrap}
+  .pipe .arrow{color:var(--muted);text-align:center;margin-left:24px}
+  .pipe .blk{border-left:3px solid var(--pink);padding-left:14px;margin-left:8px}
+  .pipe .blkhdr{color:var(--pink);font-size:.78rem;text-transform:uppercase;letter-spacing:.5px;margin:6px 0 2px}
+
+  /* interactive explorer */
+  .explorer{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px;margin:20px 0}
+  .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:8px}
+  .ctl label{display:block;font-size:.78rem;color:var(--muted);margin-bottom:4px}
+  .ctl .v{color:var(--accent);font-weight:700}
+  .ctl input[type=range]{width:100%;accent-color:var(--accent)}
+  .ctl select{width:100%;background:#0a0e14;color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px}
+  .preset{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 18px}
+  .preset button{background:#21262d;border:1px solid var(--border);color:var(--muted);
+    padding:6px 13px;border-radius:18px;cursor:pointer;font-size:.8rem}
+  .preset button:hover,.preset button.sel{color:#0d1117;background:var(--accent);border-color:var(--accent);font-weight:600}
+  .stats{display:flex;gap:22px;flex-wrap:wrap;margin:6px 0 14px;font-size:.85rem}
+  .stats .s b{color:var(--accent2);font-family:var(--mono)}
+  .toggle{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px}
+  .toggle button{background:#0a0e14;color:var(--muted);border:none;padding:7px 16px;cursor:pointer;font-size:.85rem}
+  .toggle button.on{background:var(--accent);color:#0d1117;font-weight:700}
+  #shapeTable td:nth-child(1){color:var(--muted);font-family:var(--mono);font-size:.78rem;width:42px;text-align:right}
+  #shapeTable td:nth-child(2){font-family:var(--mono);color:#e6edf3}
+  #shapeTable td:nth-child(3){font-family:var(--mono);color:var(--accent2);white-space:nowrap}
+  #shapeTable td:nth-child(4){color:var(--muted);font-size:.85rem}
+  .phase td{background:#182135 !important;color:var(--pink) !important;font-weight:700;
+    text-transform:uppercase;letter-spacing:.5px;font-size:.76rem}
+  .err{color:var(--warn);font-weight:600}
+
+  .legend{font-size:.84rem;color:var(--muted);margin-top:10px}
+  .legend code{color:var(--accent)}
+  hr{border:none;border-top:1px solid var(--border);margin:30px 0}
+  .small{font-size:.85rem;color:var(--muted)}
+  @media(max-width:880px){
+    nav.side{display:none}
+    main{padding:24px 18px 80px}
+  }
+
+  /* ---------- practice arcade ---------- */
+  .recap{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:14px 0 24px}
+  .recap .r{background:#10151c;border:1px solid var(--border);border-left:3px solid var(--accent);
+    border-radius:8px;padding:10px 12px;font-size:.83rem;color:var(--muted)}
+  .recap .r b{color:var(--accent)}
+  #practice .hud{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:16px;
+    background:linear-gradient(90deg,#10182a,#161b22);border:1px solid var(--border);
+    border-radius:12px;padding:12px 18px;margin:8px 0 22px}
+  #practice .hud .score{font-family:var(--mono);font-size:1.5rem;font-weight:800;color:var(--accent2);line-height:1}
+  #practice .hud .score small{font-size:.62rem;color:var(--muted);font-weight:400;display:block;letter-spacing:1.5px}
+  #practice .hud .combo{font-family:var(--mono);color:var(--warn);font-weight:700;white-space:nowrap}
+  #practice .hud .combo.pulse{animation:comboPop .4s ease}
+  @keyframes comboPop{0%{transform:scale(1)}40%{transform:scale(1.45);color:#fff}100%{transform:scale(1)}}
+  #practice .bar{flex:1;height:12px;background:#0a0e14;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+  #practice .bar > i{display:block;height:100%;width:0;border-radius:8px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .5s cubic-bezier(.2,.8,.2,1)}
+  #practice .bar-label{font-size:.78rem;color:var(--muted);font-family:var(--mono);min-width:58px;text-align:right}
+  #practice .resetq{background:#21262d;border:1px solid var(--border);color:var(--muted);
+    padding:6px 12px;border-radius:8px;cursor:pointer;font-size:.8rem;white-space:nowrap}
+  #practice .resetq:hover{color:var(--fg);border-color:var(--accent)}
+  .qcat{margin:26px 0 4px;color:var(--pink);font-size:.78rem;letter-spacing:1px;text-transform:uppercase;font-weight:700}
+  .q{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 20px 8px;
+    margin:12px 0;position:relative;transition:border-color .3s, box-shadow .3s}
+  .q.done{border-color:var(--accent2);box-shadow:0 0 0 1px var(--accent2),0 10px 34px -16px rgba(63,185,80,.6)}
+  .q .qnum{position:absolute;top:-10px;left:16px;background:var(--pink);color:#0d1117;font-size:.66rem;
+    font-weight:800;padding:2px 9px;border-radius:6px;font-family:var(--mono)}
+  .q .prompt{font-size:1.02rem;margin:4px 0 14px;color:#e6edf3}
+  .q .prompt code{color:var(--accent)}
+  .q .blank{color:var(--warn);font-weight:700;letter-spacing:2px}
+  .q .arow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .q input.ans{background:#0a0e14;border:2px solid var(--border);border-radius:9px;color:var(--fg);
+    font-family:var(--mono);font-size:1rem;padding:10px 14px;width:min(300px,72%);outline:none;
+    transition:border-color .15s, box-shadow .15s}
+  .q input.ans:focus{border-color:var(--accent)}
+  .q input.ans.glow{box-shadow:0 0 16px 2px rgba(88,166,255,.55)}
+  .q input.ans.correct{border-color:var(--accent2);color:var(--accent2);box-shadow:0 0 20px rgba(63,185,80,.55)}
+  .q input.ans.shake{animation:shake .35s}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(4px)}}
+  .q .hintbtn{background:#2a230f;border:1px solid var(--warn);color:var(--warn);padding:9px 14px;
+    border-radius:9px;cursor:pointer;font-size:.82rem;font-weight:600;white-space:nowrap}
+  .q .hintbtn:hover{background:#3a3010}
+  .q .reveal{font-family:var(--mono);background:#0f2a17;border:1px dashed var(--accent2);
+    color:var(--accent2);padding:6px 12px;border-radius:8px;opacity:0;transform:translateY(4px);
+    transition:opacity .25s, transform .25s;pointer-events:none}
+  .q .reveal.show{opacity:1;transform:translateY(0)}
+  .q .check{font-size:1.4rem;color:var(--accent2);opacity:0;transform:scale(.4);transition:.3s}
+  .q.done .check{opacity:1;transform:scale(1)}
+  .q .why{margin-top:4px;font-size:.88rem;color:var(--muted);background:#0e1622;border-radius:8px;
+    padding:0 14px;max-height:0;overflow:hidden;transition:max-height .45s ease, padding .45s ease, margin .45s ease}
+  .q.done .why{max-height:240px;padding:11px 14px;margin:12px 0 4px}
+  .q .why b{color:var(--accent2)}
+  .q .why code{color:var(--accent)}
+  /* fx layers */
+  .floatpts{position:fixed;pointer-events:none;font-family:var(--mono);font-weight:800;font-size:1.3rem;
+    color:var(--accent2);z-index:60;animation:floatUp 1s ease-out forwards;text-shadow:0 2px 8px #000}
+  @keyframes floatUp{0%{opacity:0;transform:translateY(0) scale(.6)}15%{opacity:1}100%{opacity:0;transform:translateY(-72px) scale(1.2)}}
+  .spark{position:fixed;pointer-events:none;width:7px;height:7px;border-radius:50%;z-index:55;
+    animation:sparkUp .6s ease-out forwards}
+  @keyframes sparkUp{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.2)}}
+  #fx{position:fixed;inset:0;pointer-events:none;z-index:50}
+  #victory{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:70;
+    background:rgba(5,8,12,.55);pointer-events:none}
+  #victory.show{display:flex}
+  #victory .v{background:linear-gradient(135deg,#10241a,#0d1117);border:2px solid var(--accent2);
+    border-radius:18px;padding:34px 48px;text-align:center;box-shadow:0 24px 90px -20px rgba(63,185,80,.7);
+    animation:vpop .5s cubic-bezier(.2,1.4,.4,1);pointer-events:auto}
+  @keyframes vpop{0%{transform:scale(.5);opacity:0}100%{transform:scale(1);opacity:1}}
+  #victory h3{margin:0 0 8px;color:var(--accent2);font-size:1.9rem}
+  #victory p{color:#d3dbe3;margin:.2em 0}
+  #victory button{margin-top:16px;background:var(--accent2);color:#0d1117;border:none;font-weight:700;
+    padding:10px 24px;border-radius:10px;cursor:pointer;font-size:.95rem}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="side">
+  <div class="brand"><span>nano</span>GPT · explained</div>
+  <div class="sub">Karpathy's minimal GPT, end to end</div>
+  <div class="grp">Start here</div>
+  <a href="#overview">1 · Overview</a>
+  <a href="#files">2 · Files &amp; structure</a>
+  <a href="#run">3 · Install &amp; run</a>
+  <div class="grp">The model</div>
+  <a href="#arch">4 · Architecture</a>
+  <a href="#flow">5 · Forward pass</a>
+  <a href="#explorer">6 · Shape explorer ▸</a>
+  <div class="grp">The loops</div>
+  <a href="#train">7 · Training loop</a>
+  <a href="#infer">8 · Inference / sampling</a>
+  <div class="grp">Hands on</div>
+  <a href="#shapes">9 · Print tensor shapes</a>
+  <a href="#cheats">10 · Cheat sheet</a>
+  <div class="grp">Test yourself</div>
+  <a href="#practice">11 · Practice arcade ▸</a>
+</nav>
+
+<main>
+  <div class="hero">
+    <h1>nanoGPT, explained from scratch</h1>
+    <p class="lead">A ~600-line repo that trains and runs a GPT. Two files do the heavy lifting:
+    <code>model.py</code> defines the network, <code>train.py</code> optimizes it. This page walks the
+    whole path — install &rarr; data &rarr; train &rarr; sample — explains every tensor shape, and shows exactly
+    what to edit to print shapes at each step.</p>
+    <div class="pills">
+      <span>PyTorch</span><span>GPT-2 architecture</span><span>~10.6M&ndash;1.5B params</span>
+      <span>char or BPE tokens</span><span>single file model</span>
+    </div>
+  </div>
+
+  <!-- 1. OVERVIEW -->
+  <section id="overview">
+    <h2>1 · Overview</h2>
+    <p>nanoGPT is a decoder-only Transformer (the GPT-2 architecture) you can read in one sitting.
+    The job of the model is dead simple: <b>given a sequence of tokens, predict the next token.</b>
+    Do that well, and you can generate text by sampling one token at a time and feeding it back in.</p>
+
+    <div class="cards">
+      <div class="card"><h4>1. Prepare data</h4><div class="f">data/*/prepare.py</div>
+        <p>Turn raw text into a stream of integer token ids saved as <code>train.bin</code> / <code>val.bin</code>.</p></div>
+      <div class="card"><h4>2. Train</h4><div class="f">train.py + model.py</div>
+        <p>Repeatedly: grab a batch, predict next tokens, measure error (loss), nudge the weights.</p></div>
+      <div class="card"><h4>3. Sample</h4><div class="f">sample.py</div>
+        <p>Load the trained weights and autoregressively generate new text.</p></div>
+    </div>
+
+    <div class="note"><b>Mental model:</b> the entire network is a function
+      <code>idx → logits</code>. Input <code>idx</code> is a grid of token ids of shape
+      <code>[batch, time]</code>; output <code>logits</code> is a probability score for every
+      vocabulary word at every position, shape <code>[batch, time, vocab]</code>. Everything else
+      is plumbing around that one function.</p>
+
+    <div class="warn"><b>Heads up:</b> the README marks this repo as old/deprecated in favor of
+      <a href="https://github.com/karpathy/nanochat" target="_blank">nanochat</a>. nanoGPT is still the
+      cleanest place to <i>learn</i> how a GPT works, which is what this page is for.</p>
+  </section>
+
+  <!-- 2. FILES -->
+  <section id="files">
+    <h2>2 · Files &amp; structure</h2>
+    <p>The whole repo is small. Here is every file that matters and what it does:</p>
+    <table>
+      <tr><th>File</th><th>Role</th></tr>
+      <tr><td><code>model.py</code></td><td>The GPT definition: embeddings, attention, MLP, blocks, the
+        <code>forward()</code> pass, weight loading, and <code>generate()</code>. ~330 lines. <b>The heart.</b></td></tr>
+      <tr><td><code>train.py</code></td><td>The training loop: data loader, optimizer, learning-rate schedule,
+        gradient accumulation, evaluation, checkpointing, multi-GPU (DDP). ~340 lines.</td></tr>
+      <tr><td><code>sample.py</code></td><td>Load a checkpoint (or GPT-2 weights) and generate text.</td></tr>
+      <tr><td><code>configurator.py</code></td><td>Tiny hack: <code>exec()</code>s a config file or CLI
+        <code>--key=value</code> args to override globals. That's why <code>train.py config/foo.py --batch_size=8</code> works.</td></tr>
+      <tr><td><code>config/*.py</code></td><td>Ready-made hyperparameter sets, e.g.
+        <code>train_shakespeare_char.py</code> (a tiny model), <code>train_gpt2.py</code> (the real 124M run).</td></tr>
+      <tr><td><code>data/*/prepare.py</code></td><td>Per-dataset tokenizer: downloads text, encodes it to ids,
+        writes <code>train.bin</code>, <code>val.bin</code>, and <code>meta.pkl</code> (vocab).</td></tr>
+      <tr><td><code>bench.py</code></td><td>Micro-benchmark of forward/backward speed.</td></tr>
+      <tr><td><code>shapes_demo.py</code> <span class="small">(added by this guide)</span></td>
+        <td>Runs one forward pass and prints the shape of every layer via hooks. See §9.</td></tr>
+    </table>
+
+    <h3>How the pieces talk</h3>
+    <div class="pipe">
+      <div class="row"><div class="box"><b>prepare.py</b> &nbsp;raw text &rarr; ids</div><div class="shp">writes train.bin / val.bin / meta.pkl</div></div>
+      <div class="arrow">↓</div>
+      <div class="row"><div class="box"><b>train.py</b> &nbsp;reads .bin, builds <code>GPT(GPTConfig)</code> from <b>model.py</b>, loops</div><div class="shp">writes out/ckpt.pt</div></div>
+      <div class="arrow">↓</div>
+      <div class="row"><div class="box"><b>sample.py</b> &nbsp;loads ckpt.pt into <code>GPT</code>, calls <code>model.generate()</code></div><div class="shp">prints text</div></div>
+    </div>
+  </section>
+
+  <!-- 3. RUN -->
+  <section id="run">
+    <h2>3 · Install &amp; run</h2>
+    <p>Below is the fastest end-to-end path: train a small character-level Shakespeare model and sample from it.
+    It runs on a laptop CPU (slowly) or Apple-Silicon GPU (<code>mps</code>).</p>
+
+    <h3>Step 0 — install dependencies</h3>
+    <div class="codewrap"><span class="lbl">shell</span><code class="codeblock" data-key="install"></code></div>
+    <div class="note">You're on macOS with no <code>torch</code> in any env yet (checked: base/gemma conda envs, system python).
+      Activate or create an env first, e.g. <code>conda create -n gpt python=3.11 &amp;&amp; conda activate gpt</code>, then run the install.</div>
+
+    <h3>Step 1 — prepare the data</h3>
+    <p>Downloads ~1&nbsp;MB of Shakespeare and turns each character into an integer id (vocab = 65 unique chars).</p>
+    <div class="codewrap"><span class="lbl">shell</span><code class="codeblock" data-key="prepare"></code></div>
+    <p class="small">Creates <code>data/shakespeare_char/{train.bin, val.bin, meta.pkl}</code>.</p>
+
+    <h3>Step 2 — train</h3>
+    <p>On a Mac, force CPU/MPS and disable <code>torch.compile</code> (compile needs CUDA/Triton and breaks debug prints):</p>
+    <div class="codewrap"><span class="lbl">shell · mac</span><code class="codeblock" data-key="train_mac"></code></div>
+    <p>On an NVIDIA GPU, just use the defaults (this is the ~3-minute baby-GPT run on an A100):</p>
+    <div class="codewrap"><span class="lbl">shell · cuda</span><code class="codeblock" data-key="train_gpu"></code></div>
+    <p>Watch the loss drop. Checkpoints land in <code>out-shakespeare-char/ckpt.pt</code>.
+    The config (<code>config/train_shakespeare_char.py</code>) builds a <b>6-layer, 6-head, 384-dim, ~10.6M-param</b> model.</p>
+
+    <h3>Step 3 — sample (inference)</h3>
+    <div class="codewrap"><span class="lbl">shell · mac</span><code class="codeblock" data-key="sample"></code></div>
+    <p>Prompt it with your own text:</p>
+    <div class="codewrap"><span class="lbl">shell</span><code class="codeblock" data-key="sample_prompt"></code></div>
+
+    <h3>Bonus — skip training, use real GPT-2</h3>
+    <p>No training needed — download OpenAI's pretrained weights and generate immediately:</p>
+    <div class="codewrap"><span class="lbl">shell</span><code class="codeblock" data-key="sample_gpt2"></code></div>
+
+    <table>
+      <tr><th>Knob</th><th>Where</th><th>Meaning</th></tr>
+      <tr><td><code>--device</code></td><td>train/sample</td><td><code>cpu</code>, <code>cuda</code>, or <code>mps</code> (Apple GPU)</td></tr>
+      <tr><td><code>--compile</code></td><td>train/sample</td><td><code>True</code> = JIT-compile for speed (CUDA). Set <code>False</code> on Mac / for debugging.</td></tr>
+      <tr><td><code>--init_from</code></td><td>train/sample</td><td><code>scratch</code>, <code>resume</code>, or <code>gpt2</code>/<code>gpt2-medium</code>/<code>gpt2-large</code>/<code>gpt2-xl</code></td></tr>
+      <tr><td><code>--max_iters</code></td><td>train</td><td>how many optimization steps to run</td></tr>
+      <tr><td><code>--temperature</code> / <code>--top_k</code></td><td>sample</td><td>sampling randomness / candidate cutoff</td></tr>
+    </table>
+  </section>
+
+  <!-- 4. ARCHITECTURE -->
+  <section id="arch">
+    <h2>4 · Architecture</h2>
+    <p>The model is a stack of identical <b>Transformer blocks</b> wrapped between embeddings (in) and a
+    linear head (out). Here is the whole thing, top-down.</p>
+
+    <h3>The config</h3>
+    <p>Every shape in the network is derived from these six numbers:</p>
+    <div class="codewrap"><span class="lbl">model.py</span><code class="codeblock" data-key="cfg"></code></div>
+    <table>
+      <tr><th>Field</th><th>Symbol</th><th>What it controls</th></tr>
+      <tr><td><code>block_size</code></td><td>T</td><td>max context length (how many past tokens it can see)</td></tr>
+      <tr><td><code>vocab_size</code></td><td>V</td><td>number of distinct tokens</td></tr>
+      <tr><td><code>n_embd</code></td><td>C</td><td>embedding width — the "thickness" of every vector</td></tr>
+      <tr><td><code>n_head</code></td><td>nh</td><td>attention heads (must divide C; head size = C/nh)</td></tr>
+      <tr><td><code>n_layer</code></td><td>L</td><td>how many blocks are stacked</td></tr>
+      <tr><td><code>dropout</code>, <code>bias</code></td><td>—</td><td>regularization / whether Linears &amp; LayerNorms have bias</td></tr>
+    </table>
+
+    <h3>Top-level assembly (the <code>GPT</code> module)</h3>
+    <div class="pipe">
+      <div class="blkhdr">transformer = ModuleDict(...)</div>
+      <div class="row"><div class="box"><b>wte</b> token embedding &nbsp;<code>Embedding(V, C)</code></div><div class="shp">id → vector</div></div>
+      <div class="row"><div class="box"><b>wpe</b> position embedding &nbsp;<code>Embedding(T, C)</code></div><div class="shp">slot → vector</div></div>
+      <div class="row"><div class="box"><b>drop</b> dropout</div></div>
+      <div class="blk">
+        <div class="blkhdr">h = ModuleList([ Block × n_layer ])</div>
+        <div class="row"><div class="box">each Block: <code>ln_1 → attn → (+) → ln_2 → mlp → (+)</code></div></div>
+      </div>
+      <div class="row"><div class="box"><b>ln_f</b> final LayerNorm</div></div>
+      <div class="row"><div class="box"><b>lm_head</b> &nbsp;<code>Linear(C, V, bias=False)</code> &nbsp;→ logits</div><div class="shp">vector → vocab scores</div></div>
+    </div>
+    <div class="tip"><b>Weight tying:</b> <code>wte.weight = lm_head.weight</code>. The same matrix maps
+      ids→vectors on the way in and vectors→scores on the way out. Saves <code>V×C</code> params and trains better.</div>
+
+    <h3>Component 1 — <code>CausalSelfAttention</code></h3>
+    <p>This is where tokens "look at" earlier tokens. <b>Causal</b> = a token may only attend to itself and the
+    past, never the future (otherwise it would cheat at next-token prediction).</p>
+    <div class="codewrap"><span class="lbl">model.py</span><code class="codeblock" data-key="attn"></code></div>
+    <ul>
+      <li><b>One matmul makes Q, K, V.</b> <code>c_attn</code> projects each token vector (C) to <code>3C</code>, then splits into query/key/value.</li>
+      <li><b>Reshape into heads.</b> <code>C</code> is sliced into <code>nh</code> heads of size <code>hs = C/nh</code>; shape becomes <code>[B, nh, T, hs]</code> so each head attends independently.</li>
+      <li><b>Attention scores.</b> <code>q @ kᵀ</code> gives a <code>[B, nh, T, T]</code> matrix — how much each token attends to each other token. Scaled by <code>1/√hs</code>, causally masked, softmaxed.</li>
+      <li><b>Weighted sum of values.</b> <code>att @ v</code> → <code>[B, nh, T, hs]</code>, then heads are concatenated back to <code>[B, T, C]</code> and projected by <code>c_proj</code>.</li>
+      <li><b>Flash attention</b> (<code>scaled_dot_product_attention</code>, PyTorch ≥ 2.0) fuses score+mask+softmax+matmul into one fast kernel — same math, no explicit <code>[B,nh,T,T]</code> tensor in memory.</li>
+    </ul>
+
+    <h3>Component 2 — <code>MLP</code></h3>
+    <p>A per-token 2-layer feed-forward net. Expand to 4×, apply GELU non-linearity, project back. This is where
+    most of the model's "knowledge" capacity lives.</p>
+    <div class="codewrap"><span class="lbl">model.py</span><code class="codeblock" data-key="mlp"></code></div>
+
+    <h3>Component 3 — <code>Block</code> (the repeated unit)</h3>
+    <p>A block = attention + MLP, each with a <b>pre-LayerNorm</b> and a <b>residual (skip) connection</b>.
+    The <code>x +</code> is the residual: the block learns a <i>delta</i> to add to the running stream, which
+    makes deep stacks trainable.</p>
+    <div class="codewrap"><span class="lbl">model.py</span><code class="codeblock" data-key="block"></code></div>
+
+    <h3>The full forward pass</h3>
+    <div class="codewrap"><span class="lbl">model.py</span><code class="codeblock" data-key="forward"></code></div>
+    <div class="note"><b>Train vs. inference branch:</b> if <code>targets</code> are given (training), it computes logits
+      for <i>all</i> positions and a cross-entropy loss. If not (generation), it only runs <code>lm_head</code> on the
+      <i>last</i> position — that's all you need to predict the next token, and it's much cheaper.</div>
+  </section>
+
+  <!-- 5. FLOW -->
+  <section id="flow">
+    <h2>5 · Forward pass, shape by shape</h2>
+    <p>Let's trace a single batch through the network. Using the Shakespeare config
+    (<code>B=64, T=256, C=384, nh=6, L=6, V=65</code>, so head size <code>hs = 64</code>):</p>
+
+    <div class="pipe">
+      <div class="row"><div class="box"><b>get_batch</b> → <code>idx</code>, <code>targets</code></div><div class="shp">[B, T] = [64, 256]</div></div>
+      <div class="arrow">↓ embed</div>
+      <div class="row"><div class="box"><b>wte(idx) + wpe(pos)</b> → x</div><div class="shp">[B, T, C] = [64, 256, 384]</div></div>
+      <div class="arrow">↓ × n_layer blocks</div>
+      <div class="blk">
+        <div class="blkhdr">inside one Block</div>
+        <div class="row"><div class="box">ln_1 → c_attn → split q,k,v</div><div class="shp">qkv [B,T,3C]=[64,256,1152]</div></div>
+        <div class="row"><div class="box">reshape to heads</div><div class="shp">[B,nh,T,hs]=[64,6,256,64]</div></div>
+        <div class="row"><div class="box">q @ kᵀ → attention matrix</div><div class="shp">[B,nh,T,T]=[64,6,256,256]</div></div>
+        <div class="row"><div class="box">att @ v → merge heads → c_proj</div><div class="shp">[B,T,C]=[64,256,384]</div></div>
+        <div class="row"><div class="box">ln_2 → mlp (c_fc 4× → gelu → c_proj)</div><div class="shp">hidden [B,T,4C]=[64,256,1536]</div></div>
+      </div>
+      <div class="arrow">↓ ln_f</div>
+      <div class="row"><div class="box"><b>lm_head(x)</b> → logits (training)</div><div class="shp">[B, T, V] = [64, 256, 65]</div></div>
+      <div class="row"><div class="box"><b>cross_entropy</b> → loss</div><div class="shp">scalar []</div></div>
+    </div>
+
+    <p>Want to see these update live for any model size? Use the interactive explorer next. ↓</p>
+  </section>
+
+  <!-- 6. EXPLORER -->
+  <section id="explorer">
+    <h2>6 · Interactive shape explorer</h2>
+    <p>Drag the sliders. Every tensor shape in the forward pass recomputes instantly. Switch presets to see how
+    the baby Shakespeare model compares to real GPT-2.</p>
+
+    <div class="explorer">
+      <div class="preset" id="presets"></div>
+      <div class="controls">
+        <div class="ctl"><label>batch size B = <span class="v" id="vB">64</span></label>
+          <input type="range" id="B" min="1" max="128" value="64"></div>
+        <div class="ctl"><label>block size T (context) = <span class="v" id="vT">256</span></label>
+          <input type="range" id="T" min="8" max="1024" step="8" value="256"></div>
+        <div class="ctl"><label>n_embd C = <span class="v" id="vC">384</span></label>
+          <input type="range" id="C" min="16" max="1600" step="16" value="384"></div>
+        <div class="ctl"><label>n_head nh = <span class="v" id="vH">6</span></label>
+          <input type="range" id="H" min="1" max="25" value="6"></div>
+        <div class="ctl"><label>n_layer L = <span class="v" id="vL">6</span></label>
+          <input type="range" id="L" min="1" max="48" value="6"></div>
+        <div class="ctl"><label>vocab_size V = <span class="v" id="vV">65</span></label>
+          <input type="range" id="V" min="2" max="50304" step="1" value="65"></div>
+      </div>
+      <div class="stats">
+        <div class="s">head size hs = C/nh = <b id="sHS">64</b></div>
+        <div class="s">params (non-embedding) ≈ <b id="sParams">10.6M</b></div>
+        <div class="s">tokens / batch = B·T = <b id="sTok">16,384</b></div>
+        <div class="s" id="sErr"></div>
+      </div>
+      <div class="toggle">
+        <button id="modeTrain" class="on">training (targets given)</button>
+        <button id="modeInfer">inference (generate)</button>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Operation</th><th>Output shape</th><th>What happens</th></tr></thead>
+        <tbody id="shapeTable"></tbody>
+      </table>
+      <div class="legend">Legend: <code>B</code> batch · <code>T</code> time/context · <code>C</code> embedding ·
+        <code>nh</code> heads · <code>hs</code> head size · <code>V</code> vocab. The <span style="color:var(--pink)">pink rows</span>
+        repeat once per layer (<code>×L</code>).</div>
+    </div>
+  </section>
+
+  <!-- 7. TRAIN -->
+  <section id="train">
+    <h2>7 · Training loop</h2>
+    <p><code>train.py</code> is one big <code>while True</code> loop. Strip away DDP/logging and it's just this:</p>
+    <div class="codewrap"><span class="lbl">train.py · simplified</span><code class="codeblock" data-key="trainloop"></code></div>
+
+    <h3>The data loader</h3>
+    <p>No fancy <code>DataLoader</code> — just random windows into a memory-mapped array of token ids.
+    <code>x</code> is a window, <code>y</code> is the same window shifted right by one (the "next token" target).</p>
+    <div class="codewrap"><span class="lbl">train.py</span><code class="codeblock" data-key="getbatch"></code></div>
+    <div class="note"><b>Why <code>y</code> is <code>x</code> shifted by 1:</b> at position <code>t</code> the model sees
+      <code>x[0..t]</code> and must predict <code>x[t+1]</code>, which is exactly <code>y[t]</code>. One forward pass
+      produces a prediction at <i>every</i> position at once — that's why training is efficient.</div>
+
+    <h3>Key mechanics</h3>
+    <table>
+      <tr><th>Mechanism</th><th>Why</th></tr>
+      <tr><td><b>Gradient accumulation</b> (<code>gradient_accumulation_steps</code>)</td>
+        <td>Run several micro-batches, summing gradients before one optimizer step → simulate a huge batch on small VRAM.</td></tr>
+      <tr><td><b>Mixed precision</b> (<code>autocast</code> + <code>GradScaler</code>)</td>
+        <td>Compute in bf16/fp16 for speed; the scaler prevents fp16 gradient underflow.</td></tr>
+      <tr><td><b>Cosine LR schedule</b> with warmup (<code>get_lr</code>)</td>
+        <td>Ramp learning rate up over <code>warmup_iters</code>, then cosine-decay to <code>min_lr</code>.</td></tr>
+      <tr><td><b>Gradient clipping</b> (<code>grad_clip</code>)</td>
+        <td>Cap gradient norm at 1.0 so a bad batch can't blow up the weights.</td></tr>
+      <tr><td><b>AdamW + selective weight decay</b></td>
+        <td>2D tensors (matmuls, embeddings) get weight decay; biases &amp; LayerNorms don't.</td></tr>
+      <tr><td><b>Eval &amp; checkpoint</b> every <code>eval_interval</code></td>
+        <td>Estimate train/val loss over many batches; save <code>ckpt.pt</code> when val loss improves.</td></tr>
+      <tr><td><b>DDP</b> (<code>torchrun</code>)</td>
+        <td>One process per GPU; gradients are all-reduced (averaged) across GPUs each step.</td></tr>
+    </table>
+
+    <div class="pipe">
+      <div class="blkhdr">one optimization step</div>
+      <div class="row"><div class="box">set learning rate <code>get_lr(iter)</code></div></div>
+      <div class="row"><div class="box">× grad_accum: <code>logits,loss = model(X,Y)</code>; <code>loss.backward()</code>; prefetch next batch</div></div>
+      <div class="row"><div class="box">clip grads → <code>optimizer.step()</code> → <code>zero_grad()</code></div></div>
+      <div class="row"><div class="box">every eval_interval: estimate_loss(); save ckpt</div></div>
+    </div>
+  </section>
+
+  <!-- 8. INFER -->
+  <section id="infer">
+    <h2>8 · Inference / sampling</h2>
+    <p>Generation is a loop around the forward pass. Each step: predict next-token logits, sample one token,
+    append it, repeat. This is <b>autoregressive</b> decoding.</p>
+    <div class="codewrap"><span class="lbl">model.py</span><code class="codeblock" data-key="generate"></code></div>
+    <ol>
+      <li><b>Crop context</b> to the last <code>block_size</code> tokens (the model can't see further back).</li>
+      <li><b>Forward</b> → take logits at the final position only: <code>logits[:, -1, :]</code>, shape <code>[B, V]</code>.</li>
+      <li><b>Temperature</b> divides the logits: &lt;1 sharpens (safer), &gt;1 flattens (wilder).</li>
+      <li><b>top-k</b> zeroes out all but the <code>k</code> most likely tokens before sampling.</li>
+      <li><b>Softmax → multinomial sample</b> → one new token id, appended to the sequence.</li>
+    </ol>
+    <div class="tip"><code>@torch.no_grad()</code> on <code>generate()</code> disables gradient tracking — inference doesn't
+      learn, so skipping the backward bookkeeping saves memory and time.</div>
+    <p><code>sample.py</code> wraps this: it loads the checkpoint, rebuilds the encoder/decoder from
+    <code>meta.pkl</code> (char-level) or falls back to GPT-2 BPE via <code>tiktoken</code>, encodes your
+    <code>start</code> prompt, calls <code>generate()</code>, and decodes the ids back to text.</p>
+  </section>
+
+  <!-- 9. SHAPES -->
+  <section id="shapes">
+    <h2>9 · Print the tensor shape at each step</h2>
+    <p>Two ways, easiest first.</p>
+
+    <h3>Way A — zero edits: run <code>shapes_demo.py</code></h3>
+    <p>This guide added <code>shapes_demo.py</code> to the repo. It builds a tiny model and attaches a
+    <b>forward hook</b> to every layer, printing each module's in/out shape — no changes to <code>model.py</code>.</p>
+    <div class="codewrap"><span class="lbl">shell</span><code class="codeblock" data-key="run_demo"></code></div>
+    <p>Expected output (shapes are deterministic for config <code>B=4, T=8, C=32, nh=4, L=2, V=65</code>):</p>
+    <div class="codewrap"><span class="lbl">output</span><code class="codeblock" data-key="demo_out"></code></div>
+    <div class="note"><b>Hooks fire on modules only.</b> The internal <code>q/k/v</code> reshapes and the
+      <code>[B,nh,T,T]</code> attention matrix live <i>inside</i> one <code>forward()</code> and aren't modules, so
+      they don't show up here (and flash-attention runs as a single fused call). For those, use Way B. ↓</div>
+
+    <h3>Way B — see the internals: 4 small edits to <code>model.py</code></h3>
+    <p>Add a gated <code>dbg()</code> helper, then sprinkle <code>dbg(name, tensor)</code> calls. It's controlled by an
+    env var and prints <b>only on the first forward pass</b>, so it won't spam your training logs.</p>
+
+    <p><b>Edit 1.</b> Near the top of <code>model.py</code>, after the imports, add:</p>
+    <div class="codewrap"><span class="lbl">model.py · add</span><code class="codeblock" data-key="dbg_helper"></code></div>
+
+    <p><b>Edit 2.</b> Replace the body of <code>CausalSelfAttention.forward</code> with this annotated version
+    (same logic, plus <code>dbg</code> lines):</p>
+    <div class="codewrap"><span class="lbl">model.py · CausalSelfAttention.forward</span><code class="codeblock" data-key="dbg_attn"></code></div>
+
+    <p><b>Edit 3.</b> In <code>MLP.forward</code>, add a <code>dbg</code> after each line:</p>
+    <div class="codewrap"><span class="lbl">model.py · MLP.forward</span><code class="codeblock" data-key="dbg_mlp"></code></div>
+
+    <p><b>Edit 4.</b> In <code>GPT.forward</code>, add the toggle at the top, <code>dbg</code> calls through the body,
+    and reset the toggle before <code>return</code>:</p>
+    <div class="codewrap"><span class="lbl">model.py · GPT.forward</span><code class="codeblock" data-key="dbg_forward"></code></div>
+
+    <p><b>Run it</b> with the env var set. Use <code>--compile=False</code> (<code>torch.compile</code> swallows
+    Python prints) and a tiny batch:</p>
+    <div class="codewrap"><span class="lbl">shell</span><code class="codeblock" data-key="dbg_run"></code></div>
+    <p>You'll see, once, the full internal trace — including the <code>q/k/v</code> head reshapes and the
+    attention matrix that hooks can't reach:</p>
+    <div class="codewrap"><span class="lbl">output · DEBUG_SHAPES=1</span><code class="codeblock" data-key="dbg_out"></code></div>
+
+    <div class="warn"><b>Notes.</b> (1) The block-internal lines repeat <code>n_layer</code> times in that first pass —
+      identical shapes each time, which <i>is</i> the lesson (stacked identical blocks). To print only the first
+      layer, gate on a layer index. (2) The non-flash attention path also exposes the masked
+      <code>[B,nh,T,T]</code> matrix; flash mode computes it without materializing it. (3) Remember to revert these
+      edits (or just leave <code>DEBUG_SHAPES</code> unset) before real training runs.</div>
+  </section>
+
+  <!-- 10. CHEATS -->
+  <section id="cheats">
+    <h2>10 · Cheat sheet</h2>
+    <table>
+      <tr><th>I want to…</th><th>Do this</th></tr>
+      <tr><td>Train tiny Shakespeare on a Mac</td><td><code>python train.py config/train_shakespeare_char.py --device=cpu --compile=False</code></td></tr>
+      <tr><td>Sample from it</td><td><code>python sample.py --out_dir=out-shakespeare-char --device=cpu</code></td></tr>
+      <tr><td>Generate from real GPT-2 (no training)</td><td><code>python sample.py --init_from=gpt2 --start="Once upon a time"</code></td></tr>
+      <tr><td>Resume an interrupted run</td><td><code>python train.py config/... --init_from=resume</code></td></tr>
+      <tr><td>Finetune GPT-2 on your data</td><td><code>python train.py --init_from=gpt2 --dataset=yourdata</code></td></tr>
+      <tr><td>See module shapes (no edits)</td><td><code>python shapes_demo.py</code></td></tr>
+      <tr><td>See internal shapes (with edits)</td><td><code>DEBUG_SHAPES=1 python shapes_demo.py</code> &nbsp;(after §9 Way B)</td></tr>
+      <tr><td>Multi-GPU train</td><td><code>torchrun --standalone --nproc_per_node=4 train.py config/...</code></td></tr>
+    </table>
+    <h3>Shape glossary</h3>
+    <table>
+      <tr><th>Symbol</th><th>= config field</th><th>Shakespeare</th><th>GPT-2 124M</th></tr>
+      <tr><td>B</td><td>batch_size</td><td>64</td><td>12 (×40 grad-accum)</td></tr>
+      <tr><td>T</td><td>block_size</td><td>256</td><td>1024</td></tr>
+      <tr><td>C</td><td>n_embd</td><td>384</td><td>768</td></tr>
+      <tr><td>nh</td><td>n_head</td><td>6</td><td>12</td></tr>
+      <tr><td>hs = C/nh</td><td>head size</td><td>64</td><td>64</td></tr>
+      <tr><td>L</td><td>n_layer</td><td>6</td><td>12</td></tr>
+      <tr><td>V</td><td>vocab_size</td><td>65</td><td>50304</td></tr>
+    </table>
+    <hr>
+    <p class="small">Generated for the nanoGPT repo · companion file: <code>shapes_demo.py</code> ·
+      open this file in any browser, fully offline.</p>
+  </section>
+
+  <!-- 11. PRACTICE ARCADE -->
+  <section id="practice">
+    <h2>11 · Practice arcade</h2>
+    <p class="lead">Lock in every concept from this page. Type the missing word — get it right and the screen
+    rewards you with sparks, points, and a combo streak. Stuck? Tap <b>💡 Hint</b> to flash the answer for a
+    moment, then type it to continue. Solve them all to trigger the confetti finale.</p>
+
+    <div class="recap">
+      <div class="r"><b>Embeddings</b> — <code>wte</code> id→vector, <code>wpe</code> position→vector, added together.</div>
+      <div class="r"><b>Attention</b> — <code>q·kᵀ</code> scores → causal mask → softmax → weighted sum of <code>v</code>, across <code>nh</code> heads.</div>
+      <div class="r"><b>MLP</b> — expand ×4 → GELU → project back, applied per token.</div>
+      <div class="r"><b>Block</b> — pre-LayerNorm + residual around attn and mlp, stacked ×L.</div>
+      <div class="r"><b>Weight tying</b> — <code>wte.weight</code> shared with <code>lm_head</code>.</div>
+      <div class="r"><b>Shapes</b> — <code>[B,T]</code> → <code>[B,T,C]</code> → logits <code>[B,T,V]</code>.</div>
+      <div class="r"><b>Training</b> — <code>y</code> = <code>x</code> shifted by 1; cross-entropy loss; grad accumulation.</div>
+      <div class="r"><b>Inference</b> — last position only; temperature + top-k; autoregressive loop.</div>
+    </div>
+
+    <div class="hud">
+      <div class="score"><span id="qScore">0</span><small>SCORE</small></div>
+      <div class="combo" id="qCombo">🔥 0</div>
+      <div class="bar"><i id="qProg"></i></div>
+      <div class="bar-label" id="qLabel">0 / 0</div>
+      <button class="resetq" id="resetQuiz">↺ Reset</button>
+    </div>
+
+    <div id="quizRoot"></div>
+  </section>
+</main>
+<div id="victory"><div class="v">
+  <h3>🏆 nanoGPT mastered!</h3>
+  <p>You completed every question.</p>
+  <p>Final score: <b id="vScore" style="color:var(--accent2);font-family:var(--mono)">0</b></p>
+  <button id="vAgain">Play again</button>
+</div></div>
+</div>
+
+<script>
+// ---------- code snippets (kept as JS strings to avoid HTML-escaping pain) ----------
+const CODE = {
+install:
+`# in an activated python env (conda/venv)
+pip install torch numpy transformers datasets tiktoken wandb tqdm`,
+
+prepare:
+`python data/shakespeare_char/prepare.py
+# -> length of dataset in characters: 1,115,394
+# -> vocab size: 65
+# writes train.bin, val.bin, meta.pkl`,
+
+train_mac:
+`python train.py config/train_shakespeare_char.py \\
+  --device=cpu --compile=False
+# (Apple GPU: use --device=mps instead of cpu)`,
+
+train_gpu:
+`python train.py config/train_shakespeare_char.py
+# ~3 min on one A100, best val loss ~1.47`,
+
+sample:
+`python sample.py --out_dir=out-shakespeare-char --device=cpu`,
+
+sample_prompt:
+`python sample.py --out_dir=out-shakespeare-char \\
+  --start="ROMEO:" --num_samples=3 --max_new_tokens=300`,
+
+sample_gpt2:
+`python sample.py --init_from=gpt2-xl \\
+  --start="The meaning of life is" --num_samples=5`,
+
+cfg:
+`@dataclass
+class GPTConfig:
+    block_size: int = 1024   # T : max context length
+    vocab_size: int = 50304  # V : number of tokens
+    n_layer: int = 12        # L : number of Blocks
+    n_head: int = 12         # nh: attention heads
+    n_embd: int = 768        # C : embedding width
+    dropout: float = 0.0
+    bias: bool = True`,
+
+attn:
+`def forward(self, x):
+    B, T, C = x.size()   # batch, time, channels(=n_embd)
+
+    # one matmul -> Q,K,V, then split the last dim into three
+    q, k, v = self.c_attn(x).split(self.n_embd, dim=2)   # each (B, T, C)
+
+    # split C into nh heads of size hs=C/nh ; move head to front
+    k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
+    q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
+    v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
+
+    if self.flash:   # fast fused kernel, same math
+        y = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+    else:            # explicit version (shows the [B,nh,T,T] matrix)
+        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))  # (B,nh,T,T)
+        att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))  # causal mask
+        att = F.softmax(att, dim=-1)
+        y = att @ v   # (B,nh,T,T) x (B,nh,T,hs) -> (B,nh,T,hs)
+
+    y = y.transpose(1, 2).contiguous().view(B, T, C)  # merge heads -> (B,T,C)
+    y = self.resid_dropout(self.c_proj(y))            # output projection
+    return y`,
+
+mlp:
+`def forward(self, x):
+    x = self.c_fc(x)     # (B,T,C) -> (B,T,4C)   expand
+    x = self.gelu(x)     # non-linearity
+    x = self.c_proj(x)   # (B,T,4C) -> (B,T,C)   project back
+    x = self.dropout(x)
+    return x`,
+
+block:
+`def forward(self, x):
+    x = x + self.attn(self.ln_1(x))   # attention sublayer + residual
+    x = x + self.mlp(self.ln_2(x))    # MLP sublayer + residual
+    return x`,
+
+forward:
+`def forward(self, idx, targets=None):
+    b, t = idx.size()
+    pos = torch.arange(0, t, device=idx.device)        # (t,)
+
+    tok_emb = self.transformer.wte(idx)   # (b, t, C)  token meaning
+    pos_emb = self.transformer.wpe(pos)   # (t, C)     position info
+    x = self.transformer.drop(tok_emb + pos_emb)        # (b, t, C)
+
+    for block in self.transformer.h:      # the stack of L blocks
+        x = block(x)                      # (b, t, C) throughout
+    x = self.transformer.ln_f(x)          # (b, t, C)
+
+    if targets is not None:               # TRAINING
+        logits = self.lm_head(x)          # (b, t, V)
+        loss = F.cross_entropy(logits.view(-1, logits.size(-1)),
+                               targets.view(-1), ignore_index=-1)
+    else:                                 # INFERENCE: last position only
+        logits = self.lm_head(x[:, [-1], :])   # (b, 1, V)
+        loss = None
+    return logits, loss`,
+
+trainloop:
+`X, Y = get_batch('train')                 # X,Y: (B, T) token ids
+while True:
+    lr = get_lr(iter_num)                 # cosine schedule w/ warmup
+    for g in optimizer.param_groups: g['lr'] = lr
+
+    if iter_num % eval_interval == 0:     # periodically eval + save
+        losses = estimate_loss()
+        print(f"step {iter_num}: val {losses['val']:.4f}")
+        torch.save(checkpoint, 'out/ckpt.pt')
+
+    for micro in range(grad_accum_steps): # accumulate over micro-batches
+        with ctx:                         # mixed-precision autocast
+            logits, loss = model(X, Y)    # forward -> loss
+            loss = loss / grad_accum_steps
+        X, Y = get_batch('train')         # prefetch next batch
+        scaler.scale(loss).backward()     # backward (accumulate grads)
+
+    clip_grad_norm_(model.parameters(), grad_clip)
+    scaler.step(optimizer); scaler.update()   # update weights
+    optimizer.zero_grad(set_to_none=True)
+    iter_num += 1
+    if iter_num > max_iters: break`,
+
+getbatch:
+`def get_batch(split):
+    data = np.memmap('data/.../train.bin', dtype=np.uint16, mode='r')
+    ix = torch.randint(len(data) - block_size, (batch_size,))   # random starts
+    x = torch.stack([torch.from_numpy(data[i      : i+block_size  ]) for i in ix])
+    y = torch.stack([torch.from_numpy(data[i+1    : i+1+block_size]) for i in ix])
+    #   x: (B, T)   the input window
+    #   y: (B, T)   same window shifted right by 1 == next-token targets
+    return x.to(device), y.to(device)`,
+
+generate:
+`@torch.no_grad()
+def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None):
+    for _ in range(max_new_tokens):
+        idx_cond = idx[:, -self.config.block_size:]   # crop to context window
+        logits, _ = self(idx_cond)                    # (B, 1, V)
+        logits = logits[:, -1, :] / temperature       # (B, V) last step
+        if top_k is not None:                         # keep only top-k options
+            v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+            logits[logits < v[:, [-1]]] = -float('Inf')
+        probs = F.softmax(logits, dim=-1)             # (B, V) probabilities
+        idx_next = torch.multinomial(probs, num_samples=1)   # (B, 1) sample
+        idx = torch.cat((idx, idx_next), dim=1)       # append, repeat
+    return idx`,
+
+run_demo:
+`python shapes_demo.py`,
+
+demo_out:
+`config: B=4 T=8 n_embd=32 n_head=4 n_layer=2 vocab=65 head_size=8
+
+input idx (token ids)    -           in=-                out=(4, 8)
+------------------------------------------------------------------------------
+transformer.wte          Embedding   in=(4, 8)           out=(4, 8, 32)
+transformer.wpe          Embedding   in=(8,)             out=(8, 32)
+transformer.drop         Dropout     in=(4, 8, 32)       out=(4, 8, 32)
+h.0.ln_1                 LayerNorm   in=(4, 8, 32)       out=(4, 8, 32)
+h.0.attn.c_attn          Linear      in=(4, 8, 32)       out=(4, 8, 96)
+h.0.attn.c_proj          Linear      in=(4, 8, 32)       out=(4, 8, 32)
+h.0.attn.resid_dropout   Dropout     in=(4, 8, 32)       out=(4, 8, 32)
+h.0.ln_2                 LayerNorm   in=(4, 8, 32)       out=(4, 8, 32)
+h.0.mlp.c_fc             Linear      in=(4, 8, 32)       out=(4, 8, 128)
+h.0.mlp.gelu             GELU        in=(4, 8, 128)      out=(4, 8, 128)
+h.0.mlp.c_proj           Linear      in=(4, 8, 128)      out=(4, 8, 32)
+h.0.mlp.dropout          Dropout     in=(4, 8, 32)       out=(4, 8, 32)
+h.1.ln_1                 LayerNorm   in=(4, 8, 32)       out=(4, 8, 32)
+h.1.attn.c_attn          Linear      in=(4, 8, 32)       out=(4, 8, 96)
+h.1.attn.c_proj          Linear      in=(4, 8, 32)       out=(4, 8, 32)
+h.1.attn.resid_dropout   Dropout     in=(4, 8, 32)       out=(4, 8, 32)
+h.1.ln_2                 LayerNorm   in=(4, 8, 32)       out=(4, 8, 32)
+h.1.mlp.c_fc             Linear      in=(4, 8, 32)       out=(4, 8, 128)
+h.1.mlp.gelu             GELU        in=(4, 8, 128)      out=(4, 8, 128)
+h.1.mlp.c_proj           Linear      in=(4, 8, 128)      out=(4, 8, 32)
+h.1.mlp.dropout          Dropout     in=(4, 8, 32)       out=(4, 8, 32)
+ln_f                     LayerNorm   in=(4, 8, 32)       out=(4, 8, 32)
+------------------------------------------------------------------------------
+logits (all positions)   Linear      in=-                out=(4, 8, 65)
+loss (scalar)            cross_entropy in=-              out=()  value=4.7xxx
+# note: c_attn out 96 = 3*C ; mlp c_fc out 128 = 4*C ; logits last dim 65 = vocab
+# attn_dropout does NOT appear: flash attention skips it`,
+
+dbg_helper:
+`import os
+DEBUG_SHAPES = os.environ.get("DEBUG_SHAPES", "0") == "1"
+_dbg = {"on": False, "done": False}   # print only during the first forward
+
+def dbg(name, t):
+    if DEBUG_SHAPES and _dbg["on"]:
+        print(f"  {name:<22} {tuple(t.shape)}")`,
+
+dbg_attn:
+`def forward(self, x):
+    B, T, C = x.size()
+    dbg("attn in x", x)                       # (B, T, C)
+    qkv = self.c_attn(x)
+    dbg("c_attn(x) qkv", qkv)                  # (B, T, 3C)
+    q, k, v = qkv.split(self.n_embd, dim=2)
+    dbg("q (before heads)", q)                 # (B, T, C)
+
+    k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+    q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+    v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
+    dbg("q (heads)", q)                        # (B, nh, T, hs)
+
+    if self.flash:
+        y = torch.nn.functional.scaled_dot_product_attention(
+            q, k, v, attn_mask=None,
+            dropout_p=self.dropout if self.training else 0, is_causal=True)
+    else:
+        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        dbg("att = q @ k^T", att)              # (B, nh, T, T)
+        att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+        att = F.softmax(att, dim=-1)
+        att = self.attn_dropout(att)
+        y = att @ v
+    dbg("y (heads)", y)                        # (B, nh, T, hs)
+
+    y = y.transpose(1, 2).contiguous().view(B, T, C)
+    dbg("y (merged heads)", y)                 # (B, T, C)
+    y = self.resid_dropout(self.c_proj(y))
+    dbg("attn out", y)                         # (B, T, C)
+    return y`,
+
+dbg_mlp:
+`def forward(self, x):
+    x = self.c_fc(x);    dbg("mlp c_fc", x)     # (B, T, 4C)
+    x = self.gelu(x);    dbg("mlp gelu", x)     # (B, T, 4C)
+    x = self.c_proj(x);  dbg("mlp c_proj", x)   # (B, T, C)
+    x = self.dropout(x)
+    return x`,
+
+dbg_forward:
+`def forward(self, idx, targets=None):
+    device = idx.device
+    b, t = idx.size()
+    if DEBUG_SHAPES and not _dbg["done"]:       # arm the printer
+        _dbg["on"] = True
+        print("=== forward shapes (first pass only) ===")
+    dbg("idx (token ids)", idx)                 # (b, t)
+
+    assert t <= self.config.block_size
+    pos = torch.arange(0, t, dtype=torch.long, device=device)
+    dbg("pos", pos)                             # (t,)
+    tok_emb = self.transformer.wte(idx)
+    dbg("tok_emb = wte(idx)", tok_emb)          # (b, t, C)
+    pos_emb = self.transformer.wpe(pos)
+    dbg("pos_emb = wpe(pos)", pos_emb)          # (t, C)
+    x = self.transformer.drop(tok_emb + pos_emb)
+    dbg("x = tok+pos", x)                       # (b, t, C)
+    for block in self.transformer.h:
+        x = block(x)
+    dbg("x after blocks", x)                    # (b, t, C)
+    x = self.transformer.ln_f(x)
+    dbg("x after ln_f", x)                      # (b, t, C)
+
+    if targets is not None:
+        logits = self.lm_head(x)
+        dbg("logits (train)", logits)           # (b, t, V)
+        loss = F.cross_entropy(logits.view(-1, logits.size(-1)),
+                               targets.view(-1), ignore_index=-1)
+    else:
+        logits = self.lm_head(x[:, [-1], :])
+        dbg("logits (infer)", logits)           # (b, 1, V)
+        loss = None
+
+    if _dbg["on"]:                              # fire once, then stay quiet
+        _dbg["on"] = False
+        _dbg["done"] = True
+    return logits, loss`,
+
+dbg_run:
+`# any entry point works; sample is the simplest single forward
+DEBUG_SHAPES=1 python shapes_demo.py
+# or, on a real checkpoint:
+DEBUG_SHAPES=1 python sample.py --out_dir=out-shakespeare-char \\
+  --device=cpu --compile=False --num_samples=1 --max_new_tokens=1`,
+
+dbg_out:
+`=== forward shapes (first pass only) ===
+  idx (token ids)        (4, 8)
+  pos                    (8,)
+  tok_emb = wte(idx)     (4, 8, 32)
+  pos_emb = wpe(pos)     (8, 32)
+  x = tok+pos            (4, 8, 32)
+  attn in x              (4, 8, 32)
+  c_attn(x) qkv          (4, 8, 96)
+  q (before heads)       (4, 8, 32)
+  q (heads)              (4, 4, 8, 8)
+  y (heads)              (4, 4, 8, 8)
+  y (merged heads)       (4, 8, 32)
+  attn out               (4, 8, 32)
+  mlp c_fc               (4, 8, 128)
+  mlp gelu               (4, 8, 128)
+  mlp c_proj             (4, 8, 32)
+  ...(block 2 repeats the same shapes)...
+  x after blocks         (4, 8, 32)
+  x after ln_f           (4, 8, 32)
+  logits (train)         (4, 8, 65)
+# q (heads) = (B, nh, T, hs) = (4, 4, 8, 8). With the non-flash path you'd also
+# see "att = q @ k^T  (4, 4, 8, 8)" -> the (B, nh, T, T) attention matrix.`,
+};
+
+// ---------- tiny python syntax highlighter (safe single-pass) ----------
+const KW = new Set(("def class return if else elif for while import from as with in not and or "+
+  "None True False self lambda assert is global nonlocal try except finally raise yield pass "+
+  "break continue print").split(" "));
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function highlight(src){
+  const e = esc(src);
+  // single regex, ordered: comment | dq-string | sq-string | number | word
+  const re = /(#[^\n]*)|("(?:[^"\\]|\\.)*")|('(?:[^'\\]|\\.)*')|(\b\d+\.?\d*\b)|([A-Za-z_]\w*)/g;
+  return e.replace(re,(m,com,dq,sq,num,word)=>{
+    if(com!==undefined) return '<span class="tok-com">'+com+'</span>';
+    if(dq!==undefined)  return '<span class="tok-str">'+dq+'</span>';
+    if(sq!==undefined)  return '<span class="tok-str">'+sq+'</span>';
+    if(num!==undefined) return '<span class="tok-num">'+num+'</span>';
+    if(word!==undefined) return KW.has(word)
+        ? '<span class="tok-kw">'+word+'</span>' : word;
+    return m;
+  });
+}
+
+// fill code blocks + add copy buttons
+document.querySelectorAll('.codeblock').forEach(el=>{
+  const key = el.getAttribute('data-key');
+  const raw = CODE[key] || '(missing snippet: '+key+')';
+  el.innerHTML = highlight(raw);
+  const wrap = el.closest('.codewrap') || el.parentElement;
+  const btn = document.createElement('button');
+  btn.className='copy'; btn.textContent='copy';
+  btn.onclick=()=>{navigator.clipboard.writeText(raw).then(()=>{
+    btn.textContent='copied'; btn.classList.add('ok');
+    setTimeout(()=>{btn.textContent='copy'; btn.classList.remove('ok');},1200);
+  });};
+  wrap.appendChild(btn);
+});
+
+// ---------- scrollspy ----------
+const links = [...document.querySelectorAll('nav.side a')];
+const map = {}; links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+const obs = new IntersectionObserver(entries=>{
+  entries.forEach(en=>{
+    if(en.isIntersecting){
+      links.forEach(a=>a.classList.remove('active'));
+      const a = map[en.target.id]; if(a) a.classList.add('active');
+    }
+  });
+},{rootMargin:'-20% 0px -70% 0px'});
+document.querySelectorAll('section').forEach(s=>obs.observe(s));
+
+// ---------- interactive shape explorer ----------
+const els = {B:'B',T:'T',C:'C',H:'H',L:'L',V:'V'};
+const get = id => +document.getElementById(id).value;
+const presets = {
+  'Shakespeare (10.6M)': {B:64,T:256,C:384,H:6,L:6,V:65},
+  'GPT-2 (124M)':        {B:12,T:1024,C:768,H:12,L:12,V:50304},
+  'GPT-2-medium (350M)': {B:8,T:1024,C:1024,H:16,L:24,V:50304},
+  'GPT-2-xl (1.5B)':     {B:4,T:1024,C:1600,H:25,L:48,V:50304},
+  'tiny demo':           {B:4,T:8,C:32,H:4,L:2,V:65},
+};
+let mode = 'train';
+
+function fmt(n){ // 12345678 -> 12.3M
+  if(n>=1e9) return (n/1e9).toFixed(2)+'B';
+  if(n>=1e6) return (n/1e6).toFixed(2)+'M';
+  if(n>=1e3) return (n/1e3).toFixed(1)+'K';
+  return ''+n;
+}
+function commas(n){return n.toLocaleString('en-US');}
+
+function shp(arr){return '['+arr.join(', ')+']';}
+
+function rows(B,T,C,H,L,V){
+  const hs = Math.floor(C/H);
+  const r = [];
+  const P=(p)=>r.push({phase:p});
+  const S=(name,shape,note)=>r.push({name,shape,note});
+  P('input');
+  S('get_batch → idx', [B,T], 'token ids (int64)');
+  if(mode==='train') S('get_batch → targets', [B,T], 'next-token labels');
+  P('embeddings');
+  S('wte(idx)  token emb', [B,T,C], 'look up each id → C-vector');
+  S('arange → pos', [T], 'position indices 0..T-1');
+  S('wpe(pos)  position emb', [T,C], 'look up each position');
+  S('drop(tok_emb + pos_emb)', [B,T,C], 'broadcast-add; this is x');
+  P('per transformer block  ×L');
+  S('ln_1(x)', [B,T,C], 'pre-norm');
+  S('c_attn(x)', [B,T,3*C], 'one matmul → q,k,v packed');
+  S('split → q, k, v', [B,T,C], 'each is (B,T,C)');
+  S('view+transpose → heads', [B,H,T,hs], 'C split into nh heads of hs');
+  S('q @ kᵀ · 1/√hs  → att', [B,H,T,T], 'token-to-token scores');
+  S('softmax(att) (causal)', [B,H,T,T], 'attention weights');
+  S('att @ v', [B,H,T,hs], 'weighted sum of values');
+  S('merge heads', [B,T,C], 'transpose + view back');
+  S('c_proj(y)  → attn out', [B,T,C], 'output projection');
+  S('x = x + attn', [B,T,C], 'residual add');
+  S('ln_2(x)', [B,T,C], 'pre-norm');
+  S('mlp.c_fc', [B,T,4*C], 'expand 4×');
+  S('gelu', [B,T,4*C], 'non-linearity');
+  S('mlp.c_proj', [B,T,C], 'project back');
+  S('x = x + mlp', [B,T,C], 'residual add');
+  P('head');
+  S('ln_f(x)', [B,T,C], 'final layernorm');
+  if(mode==='train'){
+    S('lm_head(x)  → logits', [B,T,V], 'score every token at every position');
+    S('cross_entropy → loss', [], 'scalar; compared vs targets');
+  }else{
+    S('lm_head(x[:, -1])  → logits', [B,1,V], 'only the LAST position needed');
+    S('softmax → multinomial', [B,1], 'sample 1 next token id');
+  }
+  return {rows:r, hs};
+}
+
+function paramsNonEmb(C,L,V){ // matches nanoGPT get_num_params (bias-free approx)
+  // wte(V*C, tied & counted) + L*(12C^2 + 2C) + ln_f(C)
+  return V*C + L*(12*C*C + 2*C) + C;
+}
+
+function render(){
+  const B=get('B'),T=get('T'),C=get('C'),H=get('H'),L=get('L'),V=get('V');
+  document.getElementById('vB').textContent=B;
+  document.getElementById('vT').textContent=T;
+  document.getElementById('vC').textContent=C;
+  document.getElementById('vH').textContent=H;
+  document.getElementById('vL').textContent=L;
+  document.getElementById('vV').textContent=commas(V);
+
+  const errEl=document.getElementById('sErr');
+  const tbody=document.getElementById('shapeTable');
+  if(C % H !== 0){
+    errEl.innerHTML='<span class="err">⚠ n_embd ('+C+') must be divisible by n_head ('+H+')</span>';
+    document.getElementById('sHS').textContent='—';
+  } else {
+    errEl.textContent='';
+  }
+  const {rows:rs, hs}=rows(B,T,C,H,L,V);
+  document.getElementById('sHS').textContent=(C%H===0)?hs:'—';
+  document.getElementById('sParams').textContent='~'+fmt(paramsNonEmb(C,L,V));
+  document.getElementById('sTok').textContent=commas(B*T);
+
+  let html='', n=0;
+  for(const row of rs){
+    if(row.phase){
+      html+='<tr class="phase"><td></td><td colspan="3">'+row.phase+'</td></tr>';
+    }else{
+      n++;
+      html+='<tr><td>'+n+'</td><td>'+row.name+'</td><td>'+shp(row.shape)+
+            '</td><td>'+row.note+'</td></tr>';
+    }
+  }
+  tbody.innerHTML=html;
+}
+
+// preset buttons
+const pdiv=document.getElementById('presets');
+Object.keys(presets).forEach((name,i)=>{
+  const b=document.createElement('button');
+  b.textContent=name; if(i===0) b.classList.add('sel');
+  b.onclick=()=>{
+    const p=presets[name];
+    document.getElementById('B').value=p.B;
+    document.getElementById('T').value=p.T;
+    document.getElementById('C').value=p.C;
+    document.getElementById('H').value=p.H;
+    document.getElementById('L').value=p.L;
+    document.getElementById('V').value=p.V;
+    [...pdiv.children].forEach(c=>c.classList.remove('sel'));
+    b.classList.add('sel');
+    render();
+  };
+  pdiv.appendChild(b);
+});
+['B','T','C','H','L','V'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',()=>{
+    [...pdiv.children].forEach(c=>c.classList.remove('sel'));
+    render();
+  });
+});
+document.getElementById('modeTrain').onclick=()=>{
+  mode='train';
+  document.getElementById('modeTrain').classList.add('on');
+  document.getElementById('modeInfer').classList.remove('on');
+  render();
+};
+document.getElementById('modeInfer').onclick=()=>{
+  mode='infer';
+  document.getElementById('modeInfer').classList.add('on');
+  document.getElementById('modeTrain').classList.remove('on');
+  render();
+};
+render();
+
+// ================= PRACTICE ARCADE =================
+const QUIZ = [
+  // --- Embeddings & shapes ---
+  {cat:"Embeddings & shapes", q:"The whole model is a function idx → logits. The input `idx` (token ids) has shape [B, ____]. Fill the symbol for context length.",
+    a:["T","block_size","time"], why:"A batch is B sequences of T tokens, so `idx` is [B, T]. T is the `block_size`."},
+  {cat:"Embeddings & shapes", q:"`wte` turns each token id into a vector of width C. Its PyTorch layer type is nn.____ .",
+    a:["Embedding"], why:"`wte` is an nn.Embedding(vocab_size, n_embd) — a learnable lookup table from id to vector."},
+  {cat:"Embeddings & shapes", q:"After `wte(idx) + wpe(pos)`, the activation x has shape [B, T, ____]. Fill the symbol.",
+    a:["C","n_embd"], why:"Token + position embeddings give every position a C-dimensional vector: [B, T, C]."},
+  {cat:"Embeddings & shapes", q:"`wpe` injects information about each token's ____ in the sequence.",
+    a:["position","order"], why:"`wpe` = position embedding. Without it the model could not tell token order apart."},
+
+  // --- Self-attention ---
+  {cat:"Self-attention", q:"One Linear `c_attn` projects C → ____·C so it produces q, k and v in a single matmul.",
+    a:["3"], why:"The 3C output is split into query, key and value, each of size C."},
+  {cat:"Self-attention", q:"C is split into n_head heads, each of size hs = C / ____ . Fill the symbol.",
+    a:["n_head","nh"], why:"Each head attends in its own hs-dim subspace; head size hs = C / n_head."},
+  {cat:"Self-attention", q:"The score matrix `q @ kᵀ` has shape [B, nh, T, ____].",
+    a:["T"], why:"Every token scores against every token → a T×T matrix per head: [B, nh, T, T]."},
+  {cat:"Self-attention", q:"A token may attend only to itself and the past, never the future. This masking is called ____ attention.",
+    a:["causal","masked"], why:"Causal (masked) attention stops the model peeking at the very token it must predict."},
+  {cat:"Self-attention", q:"Raw scores become weights that sum to 1 via the ____ function.",
+    a:["softmax"], why:"softmax over the last dim turns scores into a probability distribution over past tokens."},
+
+  // --- MLP & block ---
+  {cat:"MLP & block", q:"The MLP expands the embedding by a factor of ____ (c_fc) before projecting back (c_proj).",
+    a:["4"], why:"c_fc: C→4C, then GELU, then c_proj: 4C→C. That wide hidden layer holds most of the params."},
+  {cat:"MLP & block", q:"The activation between the two MLP Linears is ____ (4-letter acronym).",
+    a:["GELU"], why:"GELU (Gaussian Error Linear Unit) is GPT-2's smooth non-linearity."},
+  {cat:"MLP & block", q:"Each sub-layer computes `x = x + sublayer(x)`. Adding the input back is a ____ connection.",
+    a:["residual","skip"], why:"Residual/skip connections let gradients flow through deep stacks, keeping them trainable."},
+  {cat:"MLP & block", q:"Before attention and MLP, activations are normalized by ____ (the module name in model.py).",
+    a:["LayerNorm","ln"], why:"nanoGPT uses pre-LayerNorm: normalize first, then attn/mlp, then add the residual."},
+  {cat:"MLP & block", q:"`wte.weight = lm_head.weight` shares one matrix for input and output. This trick is weight ____ .",
+    a:["tying","tie","sharing"], why:"Weight tying reuses the embedding matrix as the output projection — fewer params, better loss."},
+
+  // --- Training ---
+  {cat:"Training", q:"In training, `lm_head(x)` outputs logits of shape [B, T, ____].",
+    a:["V","vocab_size","vocab"], why:"A score for every vocabulary token at every position: [B, T, V]."},
+  {cat:"Training", q:"Logits are compared to targets with the ____-____ loss (two words).",
+    a:["cross entropy","cross-entropy","crossentropy"], why:"Cross-entropy measures how far the predicted distribution is from the true next token."},
+  {cat:"Training", q:"In get_batch, the target `y` is the input `x` shifted right by ____ position(s).",
+    a:["1","one"], why:"At position t the model sees x[0..t] and must predict x[t+1] = y[t]."},
+  {cat:"Training", q:"Summing gradients over several micro-batches before one optimizer step is gradient ____ .",
+    a:["accumulation","accum"], why:"Gradient accumulation simulates a large batch on limited GPU memory."},
+  {cat:"Training", q:"The learning rate warms up, then decays following a ____ curve (get_lr).",
+    a:["cosine","cos"], why:"Cosine decay smoothly lowers the LR from max to min after the warmup phase."},
+
+  // --- Inference & sampling ---
+  {cat:"Inference & sampling", q:"During generation only the ____ position's logits are needed to pick the next token.",
+    a:["last","final"], why:"You predict one token ahead, so lm_head runs on x[:, -1] only — much cheaper."},
+  {cat:"Inference & sampling", q:"Dividing logits by ____ before softmax controls randomness (lower = safer).",
+    a:["temperature","temp"], why:"Temperature < 1 sharpens the distribution; > 1 flattens it for wilder samples."},
+  {cat:"Inference & sampling", q:"Keeping only the k most likely tokens before sampling is called top-____ .",
+    a:["k"], why:"top-k zeroes out all but the k highest-probability tokens, blocking rare bad picks."},
+  {cat:"Inference & sampling", q:"Feeding each predicted token back as input and repeating is ____ decoding.",
+    a:["autoregressive","auto-regressive"], why:"Autoregressive: the model conditions on its own previous outputs to extend the sequence."},
+];
+
+// --- fx: confetti canvas ---
+const fxcv=document.createElement('canvas'); fxcv.id='fx'; document.body.appendChild(fxcv);
+const fxx=fxcv.getContext('2d'); let fxparts=[], fxraf=null;
+function fxresize(){fxcv.width=innerWidth;fxcv.height=innerHeight;} fxresize(); addEventListener('resize',fxresize);
+const FXC=['#58a6ff','#3fb950','#f778ba','#d2a8ff','#e3b341','#ff7b72'];
+function fxloop(){ if(fxraf) return;
+  const step=()=>{ fxx.clearRect(0,0,fxcv.width,fxcv.height);
+    for(const p of fxparts){ p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr; p.life--;
+      fxx.save(); fxx.translate(p.x,p.y); fxx.rotate(p.rot); fxx.fillStyle=p.c;
+      fxx.globalAlpha=Math.max(0,Math.min(1,p.life/30));
+      fxx.fillRect(-p.size/2,-p.size/2,p.size,p.size); fxx.restore(); }
+    fxparts=fxparts.filter(p=>p.life>0 && p.y<fxcv.height+50);
+    if(fxparts.length){ fxraf=requestAnimationFrame(step); }
+    else { fxraf=null; fxx.clearRect(0,0,fxcv.width,fxcv.height); } };
+  fxraf=requestAnimationFrame(step); }
+function burst(x,y,n){ for(let i=0;i<n;i++){ const a=Math.random()*Math.PI*2, sp=4+Math.random()*7;
+  fxparts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-4,g:.18,life:55+Math.random()*30,
+    size:5+Math.random()*6,rot:Math.random()*6,vr:Math.random()*.3-.15,c:FXC[i%FXC.length]});} fxloop(); }
+function rain(n){ for(let i=0;i<n;i++){ fxparts.push({x:Math.random()*fxcv.width,y:-20-Math.random()*fxcv.height,
+    vx:Math.random()*2-1,vy:2+Math.random()*4,g:.04,life:240+Math.random()*120,
+    size:5+Math.random()*7,rot:Math.random()*6,vr:Math.random()*.3-.15,c:FXC[i%FXC.length]});} fxloop(); }
+function sparkAt(x,y){ for(let i=0;i<3;i++){ const s=document.createElement('div'); s.className='spark';
+  s.style.background=FXC[Math.random()*FXC.length|0]; s.style.left=x+'px'; s.style.top=y+'px';
+  s.style.setProperty('--dx',(Math.random()*44-22)+'px'); s.style.setProperty('--dy',(-18-Math.random()*30)+'px');
+  document.body.appendChild(s); setTimeout(()=>s.remove(),600); } }
+function floatPts(x,y,txt){ const d=document.createElement('div'); d.className='floatpts';
+  d.textContent=txt; d.style.left=x+'px'; d.style.top=y+'px'; document.body.appendChild(d);
+  setTimeout(()=>d.remove(),1000); }
+
+// --- quiz rendering & logic ---
+function qnorm(s){ return (s||'').toLowerCase().replace(/[\s_\-]/g,''); }
+function qmatch(v,arr){ const n=qnorm(v); return n.length>0 && arr.some(a=>qnorm(a)===n); }
+function qfmt(s){ s=s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s=s.replace(/`([^`]+)`/g,'<code>$1</code>');
+  s=s.replace(/_{2,}/g,'<span class="blank">____</span>'); return s; }
+
+const qroot=document.getElementById('quizRoot');
+const elScore=document.getElementById('qScore'), elCombo=document.getElementById('qCombo'),
+      elProg=document.getElementById('qProg'), elLabel=document.getElementById('qLabel'),
+      vic=document.getElementById('victory');
+let qstate;
+
+function updateHUD(pulse){
+  elScore.textContent=qstate.score;
+  elLabel.textContent=qstate.solved+' / '+QUIZ.length;
+  elProg.style.width=(qstate.solved/QUIZ.length*100)+'%';
+  elCombo.textContent='🔥 '+qstate.combo;
+  if(pulse){ elCombo.classList.remove('pulse'); void elCombo.offsetWidth; elCombo.classList.add('pulse'); }
+}
+
+function buildQuiz(){
+  qroot.innerHTML=''; qstate={score:0,combo:0,solved:0}; vic.classList.remove('show');
+  let lastCat=null;
+  QUIZ.forEach((item,i)=>{
+    item._done=false; item._hint=false;
+    if(item.cat!==lastCat){ const h=document.createElement('div'); h.className='qcat';
+      h.textContent=item.cat; qroot.appendChild(h); lastCat=item.cat; }
+    const card=document.createElement('div'); card.className='q';
+    card.innerHTML='<span class="qnum">Q'+(i+1)+'</span>'+
+      '<div class="prompt">'+qfmt(item.q)+'</div>'+
+      '<div class="arow">'+
+        '<input class="ans" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="type your answer…">'+
+        '<button class="hintbtn">💡 Hint</button>'+
+        '<span class="reveal"></span><span class="check">✓</span>'+
+      '</div>'+
+      '<div class="why"><b>Why:</b> '+qfmt(item.why)+'</div>';
+    qroot.appendChild(card);
+    const inp=card.querySelector('.ans'), hint=card.querySelector('.hintbtn'), rev=card.querySelector('.reveal');
+
+    function solve(){
+      item._done=true; inp.readOnly=true; inp.classList.add('correct'); inp.classList.remove('glow');
+      card.classList.add('done');
+      const r=inp.getBoundingClientRect();
+      burst(r.left+r.width/2, r.top+r.height/2, 46);
+      qstate.combo++;
+      const pts=100 + (item._hint?0:50) + (qstate.combo-1)*10;
+      qstate.score+=pts; qstate.solved++;
+      floatPts(r.right-12, r.top, '+'+pts);
+      updateHUD(true);
+      if(qstate.solved===QUIZ.length){ setTimeout(()=>{ rain(220);
+        document.getElementById('vScore').textContent=qstate.score; vic.classList.add('show'); },450); }
+    }
+
+    inp.addEventListener('input',()=>{
+      const r=inp.getBoundingClientRect(); sparkAt(r.right-14, r.top+r.height/2);
+      inp.classList.add('glow'); clearTimeout(inp._gt);
+      inp._gt=setTimeout(()=>inp.classList.remove('glow'),180);
+      if(!item._done && qmatch(inp.value,item.a)) solve();
+    });
+    inp.addEventListener('keydown',e=>{
+      if(e.key==='Enter' && !item._done && !qmatch(inp.value,item.a)){
+        inp.classList.add('shake'); setTimeout(()=>inp.classList.remove('shake'),350); }
+    });
+    hint.addEventListener('click',()=>{
+      item._hint=true; rev.textContent='answer: '+item.a[0]; rev.classList.add('show');
+      clearTimeout(rev._t); rev._t=setTimeout(()=>rev.classList.remove('show'),2600);
+      inp.focus();
+    });
+  });
+  updateHUD(false);
+}
+document.getElementById('resetQuiz').onclick=buildQuiz;
+document.getElementById('vAgain').onclick=()=>{ buildQuiz();
+  document.getElementById('practice').scrollIntoView({behavior:'smooth'}); };
+buildQuiz();
+</script>
+</body>
+</html>
