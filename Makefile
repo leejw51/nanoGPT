@@ -38,7 +38,7 @@ START          ?=
 TRAIN_BIN := data/$(DATASET)/train.bin
 
 .DEFAULT_GOAL := help
-.PHONY: help install download download-model data prepare train inference interactive clean
+.PHONY: help install download download-model data prepare train inference interactive show clean
 
 help: ## Show this help (default)
 	@echo ""
@@ -50,6 +50,7 @@ help: ## Show this help (default)
 	@echo "  make train       Prepare data + train a model  (config: $(CONFIG))"
 	@echo "  make inference   Generate text from a trained or pretrained model"
 	@echo "  make interactive REPL: type a prompt, get a response, loop"
+	@echo "  make show        Show the trained model + source data (paths, sizes, metadata)"
 	@echo ""
 	@echo "  Helpers:"
 	@echo "  make download-model  Download pretrained GPT-2 weights ($(GPT2)) into the HuggingFace cache"
@@ -121,6 +122,28 @@ interactive: ## REPL: enter a prompt, print the response, loop (:q to quit)
 	$(PYTHON) -u interactive.py --init_from=$(INIT_FROM) --out_dir=$(OUT_DIR) \
 		--device=$(DEVICE) --max_new_tokens=$(MAX_NEW_TOKENS) \
 		--temperature=$(TEMPERATURE) --top_k=$(TOP_K)
+
+show: ## Show the trained model + source data (paths, sizes, checkpoint metadata)
+	@echo ""
+	@echo ">> Config:  DATASET=$(DATASET)  OUT_DIR=$(OUT_DIR)  DEVICE=$(DEVICE)"
+	@echo "           CONFIG=$(CONFIG)"
+	@echo ""
+	@echo ">> Source data: $(abspath data/$(DATASET))"
+	@if [ -f "$(TRAIN_BIN)" ]; then \
+		ls -lh data/$(DATASET)/*.txt data/$(DATASET)/*.bin data/$(DATASET)/*.pkl 2>/dev/null; \
+		echo "     total: $$(du -sh data/$(DATASET) | cut -f1)"; \
+	else \
+		echo "     (not prepared yet — run 'make data')"; \
+	fi
+	@echo ""
+	@echo ">> Trained model: $(OUT_DIR)/ckpt.pt"
+	@if [ -f "$(OUT_DIR)/ckpt.pt" ]; then \
+		ls -lh $(OUT_DIR)/ckpt.pt; \
+		$(PYTHON) -c "import torch; ck=torch.load('$(OUT_DIR)/ckpt.pt', map_location='cpu', weights_only=False); a=ck.get('model_args',{}); sd=ck.get('model',{}); n=sum(v.numel() for v in sd.values()); bv=ck.get('best_val_loss'); print('     iter      :', ck.get('iter_num')); print(('     val loss  : %.4f' % float(bv)) if bv is not None else '     val loss  : (n/a)'); print('     params    : %.2fM' % (n/1e6)); print('     arch      : n_layer=%s n_head=%s n_embd=%s block_size=%s vocab=%s' % (a.get('n_layer'),a.get('n_head'),a.get('n_embd'),a.get('block_size'),a.get('vocab_size'))); print('     dataset   :', ck.get('config',{}).get('dataset'))" 2>/dev/null || echo "     (could not read checkpoint metadata)"; \
+	else \
+		echo "     (no checkpoint yet — run 'make train', or use pretrained: make inference INIT_FROM=gpt2)"; \
+	fi
+	@echo ""
 
 clean: ## Remove the training output directory
 	@echo ">> Removing $(OUT_DIR)..."
